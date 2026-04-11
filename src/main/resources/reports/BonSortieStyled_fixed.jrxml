@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd"
+    name="BonSortieStyled" language="java" pageWidth="595" pageHeight="842" columnWidth="555"
+    leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="3fc0be59-9ccf-496d-b570-df1d50e8f4b1">
+
+    <parameter name="P_LOGO_PATH" class="java.io.InputStream"/>
+    <parameter name="P_COMPLEMENTAIRE" class="java.lang.Boolean"/>
+    <parameter name="P_NUMERO_BON" class="java.lang.String"/>
+    <parameter name="P_CLIENT_NOM" class="java.lang.String"/>
+    <parameter name="P_CODE_CLIENT" class="java.lang.String"/>
+    <parameter name="P_REFERENCE_COMMANDE" class="java.lang.String"/>
+    <parameter name="P_NUMERO_DEVIS" class="java.lang.String"/>
+    <parameter name="P_TITRE_SECTION" class="java.lang.String"/>
+    <parameter name="P_BON_COMMANDE" class="java.lang.String"/>
+    <parameter name="P_DATE_COMMANDE" class="java.lang.String"/>
+    <parameter name="P_DATE_GENERATION" class="java.lang.String"/>
+
+    <field name="code" class="java.lang.String"/>
+    <field name="designation" class="java.lang.String"/>
+    <field name="quantite" class="java.lang.Integer"/>
+    <field name="unite" class="java.lang.String"/>
+
+    <background>
+        <band/>
+    </background>
+
+    <title>
+        <band height="200">
+            <frame>
+                <reportElement x="-10" y="-10" width="570" height="80"/>
+                 <box>
+                   <pen lineWidth="1.25"/>
+                 </box>
+                <image>
+                    <reportElement x="10" y="20" width="50" height="50"/>
+                    <imageExpression class="java.io.InputStream"><![CDATA[$P{P_LOGO_PATH}]]></imageExpression>
+                </image>
+                <textField>
+                    <reportElement x="100" y="0" width="455" height="18"/>
+                    <textElement textAlignment="Center">
+                        <font size="12.0" isBold="true"/>
+                    </textElement>
+                    <textFieldExpression><![CDATA["Société Nationale d'Electricité du Burkina"]]></textFieldExpression>
+                </textField>
+                <staticText>
+                    <reportElement x="100" y="18" width="455" height="15"/>
+                    <textElement textAlignment="Center" verticalAlignment="Middle">
+                        <font size="10.0"/>
+                    </textElement>
+                    <text><![CDATA[OUAGADOUGOU]]></text>
+                </staticText>
+                <textField>
+                    <reportElement x="100" y="33" width="455" height="15"/>
+                    <textElement textAlignment="Center">
+                        <font size="10.0"/>
+                    </textElement>
+                    <textFieldExpression><![CDATA["DEM N° " + $P{P_NUMERO_BON}]]></textFieldExpression>
+                </textField>
+                <textField>
+                    <reportElement mode="Opaque" x="100" y="55" width="455" height="20" backcolor="#E0E0E0"/>
+                    <textElement textAlignment="Center" verticalAlignment="Middle">
+                        <font size="13.0" isBold="true"/>
+                    </textElement>
+                    <textFieldExpression><![CDATA["AUTORISATION DE SORTIE DE MATERIELS"]]></textFieldExpression>
+                </textField>
+            </frame>
+
+            <frame>
+                <reportElement x="-10" y="80" width="570" height="80"/>
+                 <box>
+                   <pen lineWidth="1.25"/>
+                 </box>
+
+                <textField>
+                    <reportElement x="10" y="10" width="555" height="16"/>
+                    <textFieldExpression><![CDATA["Client : " + $P{P_CLIENT_NOM} + " | Code : " + $P{P_CODE_CLIENT}]]></textFieldExpression>
+                </textField>
+                <textField>
+                    <reportElement x="10" y="30" width="555" height="16">
+                        <printWhenExpression><![CDATA[$P{P_REFERENCE_COMMANDE} != null && !$P{P_REFERENCE_COMMANDE}.isEmpty()]]></printWhenExpression>
+                    </reportElement>
+                    <textFieldExpression><![CDATA["Réf. commande : " + $P{P_REFERENCE_COMMANDE} + " - Devis : " + $P{P_NUMERO_DEVIS}]]></textFieldExpression>
+                </textField>
+            </frame>
+
+            <textField>
+                <reportElement x="6" y="164" width="323" height="13"/>
+                <textFieldExpression><![CDATA["Pour: " + $P{P_TITRE_SECTION}]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="10" y="178" width="465" height="20"/>
+                <textFieldExpression><![CDATA["Bon de commande n° " + $P{P_BON_COMMANDE} + " du " + $P{P_DATE_COMMANDE}]]></textFieldExpression>
+            </textField>
+        </band>
+    </title>
+
+    <columnHeader>
+        <band height="26">
+            <frame>
+                <reportElement x="0" y="0" width="555" height="22"/>
+                 <box>
+                   <pen lineWidth="1.25"/>
+                 </box>
+                <staticText>
+                    <reportElement x="0" y="0" width="90" height="22"/>
+                    <textElement textAlignment="Center" verticalAlignment="Middle"><font isBold="true"/></textElement>
+                    <text><![CDATA[CODE]]></text>
+                </staticText>
+                <staticText>
+                    <reportElement x="90" y="0" width="325" height="22"/>
+                    <textElement verticalAlignment="Middle"><font isBold="true"/></textElement>
+                    <text><![CDATA[DESIGNATION]]></text>
+                </staticText>
+                <staticText>
+                    <reportElement x="415" y="0" width="70" height="22"/>
+                    <textElement textAlignment="Center" verticalAlignment="Middle"><font isBold="true"/></textElement>
+                    <text><![CDATA[QTE]]></text>
+                </staticText>
+                <staticText>
+                    <reportElement x="485" y="0" width="70" height="22"/>
+                    <textElement textAlignment="Center" verticalAlignment="Middle"><font isBold="true"/></textElement>
+                    <text><![CDATA[UNITE]]></text>
+                </staticText>
+            </frame>
+        </band>
+    </columnHeader>
+
+    <detail>
+        <band height="22">
+            <frame>
+                <reportElement x="0" y="0" width="555" height="20"/>
+                <box><pen lineColor="#61201F"/></box>
+                <!-- Left vertical border (repeats each row) -->
+                <line>
+                  <reportElement x="0" y="0" width="1" height="20" positionType="FixRelativeToTop"/>
+                  <graphicElement>
+                    <pen lineWidth="1.25" lineColor="#61201F"/>
+                  </graphicElement>
+                </line>
+                <!-- Right vertical border (repeats each row) -->
+                <line>
+                  <reportElement x="554" y="0" width="1" height="20" positionType="FixRelativeToTop"/>
+                  <graphicElement>
+                    <pen lineWidth="1.25" lineColor="#61201F"/>
+                  </graphicElement>
+                </line>
+                <textField>
+                    <reportElement x="0" y="0" width="90" height="19"/>
+                    <textFieldExpression><![CDATA[$F{code}]]></textFieldExpression>
+                </textField>
+                <textField>
+                    <reportElement x="90" y="0" width="325" height="18"/>
+                    <textFieldExpression><![CDATA[$F{designation}]]></textFieldExpression>
+                </textField>
+                <textField>
+                    <reportElement x="415" y="0" width="70" height="18"/>
+                    <textElement textAlignment="Center"/>
+                    <textFieldExpression><![CDATA[$F{quantite}]]></textFieldExpression>
+                </textField>
+                <textField>
+                    <reportElement x="485" y="0" width="70" height="18"/>
+                    <textElement textAlignment="Center"/>
+                    <textFieldExpression><![CDATA[$F{unite}]]></textFieldExpression>
+                </textField>
+            </frame>
+        </band>
+    </detail>
+
+    <columnFooter>
+        <band height="60">
+            <!-- Bottom border to close the outer table frame -->
+            <line>
+              <reportElement x="0" y="0" width="555" height="1"/>
+              <graphicElement>
+                <pen lineWidth="1.25" lineColor="#61201F"/>
+              </graphicElement>
+            </line>
+            
+            <staticText>
+                <reportElement x="0" y="10" width="185" height="18"/>
+                <textElement textAlignment="Center"><font size="10.0" isBold="true"/></textElement>
+                <text><![CDATA[LE CHEF DE SERVICE]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="185" y="10" width="185" height="18"/>
+                <textElement textAlignment="Center"><font size="10.0" isBold="true"/></textElement>
+                <text><![CDATA[CHEF DU DEPARTEMENT]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="370" y="10" width="185" height="18"/>
+                <textElement textAlignment="Center"><font size="10.0" isBold="true"/></textElement>
+                <text><![CDATA[LE DIRECTEUR GENERAL]]></text>
+            </staticText>
+            
+            <line><reportElement x="10" y="8" width="160" height="1"/><graphicElement><pen lineColor="#61201F"/></graphicElement></line>
+            <line><reportElement x="195" y="8" width="160" height="1"/><graphicElement><pen lineColor="#61201F"/></graphicElement></line>
+            <line><reportElement x="380" y="8" width="160" height="1"/><graphicElement><pen lineColor="#61201F"/></graphicElement></line>
+        </band>
+    </columnFooter>
+
+    <pageFooter>
+        <band height="30">
+            
+            <textField>
+                <reportElement x="0" y="8" width="280" height="16"/>
+                <textElement textAlignment="Left"><font size="9.0"/></textElement>
+                <textFieldExpression><![CDATA["Généré le " + $P{P_DATE_GENERATION}]]></textFieldExpression>
+            </textField>
+            
+            <textField evaluationTime="Report">
+                <reportElement x="355" y="8" width="200" height="16"/>
+                <textElement textAlignment="Right"><font size="9.0"/></textElement>
+                <textFieldExpression><![CDATA["Page " + $V{PAGE_NUMBER} + " sur " + $V{PAGE_COUNT}]]></textFieldExpression>
+            </textField>
+        </band>
+    </pageFooter>
+
+    <summary>
+        <band height="42"/>
+    </summary>
+</jasperReport>

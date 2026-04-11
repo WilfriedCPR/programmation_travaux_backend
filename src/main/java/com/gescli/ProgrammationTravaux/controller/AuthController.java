@@ -1,0 +1,152 @@
+package com.gescli.ProgrammationTravaux.controller;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gescli.ProgrammationTravaux.service.KeycloakAuthService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.*;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.*;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/auth")
+@RequiredArgsConstructor
+public class AuthController {
+
+    private final KeycloakAuthService keycloakAuthService;
+    private final ObjectMapper mapper;
+
+    @PostMapping("/keycloak-login")
+    public ResponseEntity<?> login(@RequestBody LoginRequest req) {
+        log.info("Tentative de connexion : {}", req.username());
+        try {
+            ResponseEntity<String> resp = keycloakAuthService.exchangeCredentials(req.username(), req.password());
+            JsonNode json = mapper.readTree(resp.getBody());
+            String accessToken  = json.path("access_token").asText(null);
+            String refreshToken = json.path("refresh_token").asText(null);
+
+            ResponseCookie accessCookie = buildCookie("KC_ACCESS", accessToken, 3600);
+            ResponseCookie refreshCookie = buildCookie("KC_REFRESH", refreshToken, 7 * 24 * 3600);
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.SET_COOKIE, accessCookie.toString(), refreshCookie.toString())
+                    .body(Map.of("status", "ok"));
+        } catch (Exception e) {
+            log.warn("Échec de connexion pour {} : {}", req.username(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Identifiants incorrects"));
+        }
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<?> me(@AuthenticationPrincipal Jwt jwt) {
+        if (jwt == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("authenticated", false));
+        }
+        List<String> roles = new ArrayList<>();
+        Map<String, Object> realmAccess = jwt.getClaimAsMap("realm_access");
+        if (realmAccess != null && realmAccess.get("roles") instanceof Collection<?> r) {
+            r.forEach(role -> roles.add(role.toString()));
+        }
+        Map<String, Object> resourceAccess = jwt.getClaimAsMap("resource_access");
+        if (resourceAccess != null) {
+            resourceAccess.values().forEach(v -> {
+                if (v instanceof Map<?, ?> m && m.get("roles") instanceof Collection<?> r) {
+                    r.forEach(role -> roles.add(role.toString()));
+                }
+            });
+        }
+        Map<String, Object> userInfo = new LinkedHashMap<>();
+        userInfo.put("username",            jwt.getSubject());
+        userInfo.put("preferred_username",  jwt.getClaimAsString("preferred_username"));
+        userInfo.put("roles",               roles);
+        userInfo.put("email",               jwt.getClaimAsString("email"));
+        userInfo.put("prenom",              jwt.getClaimAsString("given_name"));
+        userInfo.put("nom",                 jwt.getClaimAsString("family_name"));
+        userInfo.put("code",                jwt.getClaimAsString("code"));
+        userInfo.put("structure",           jwt.getClaimAsString("structure"));
+        return ResponseEntity.ok(userInfo);
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refresh(@CookieValue(name = "KC_REFRESH", required = false) String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "no_refresh_token"));
+        }
+        try {
+            ResponseEntity<String> resp = keycloakAuthService.refreshToken(refreshToken);
+            JsonNode json = mapper.readTree(resp.getBody());
+            String accessToken  = json.path("access_token").asText(null);
+            String newRefresh   = json.path("refresh_token").asText(null);
+            ResponseCookie accessCookie  = buildCookie("KC_ACCESS",  accessToken, 3600);
+            ResponseCookie refreshCookie = buildCookie("KC_REFRESH", newRefresh,  7 * 24 * 3600);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.SET_COOKIE, accessCookie.toString(), refreshCookie.toString())
+                    .body(Map.of("status", "ok"));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "refresh_failed"));
+        }
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout() {
+        ResponseCookie clearAccess  = buildCookie("KC_ACCESS",  "", 0);
+        ResponseCookie clearRefresh = buildCookie("KC_REFRESH", "", 0);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, clearAccess.toString(), clearRefresh.toString())
+                .body(Map.of("status", "ok"));
+    }
+
+    @PutMapping("/profile")
+    public ResponseEntity<?> updateProfile(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestBody UpdateProfileRequest req) {
+        if (jwt == null) return ResponseEntity.status(401).build();
+        String userId = jwt.getSubject();
+        try {
+            keycloakAuthService.updateUser(userId, req.firstName(), req.lastName());
+            return ResponseEntity.ok(Map.of("status", "ok"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/change-password")
+    public ResponseEntity<?> changePassword(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestBody ChangePasswordRequest req) {
+        if (jwt == null) return ResponseEntity.status(401).build();
+        String userId = jwt.getSubject();
+        String username = jwt.getClaimAsString("preferred_username");
+        try {
+            keycloakAuthService.exchangeCredentials(username, req.currentPassword());
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body(Map.of("error", "Mot de passe actuel incorrect"));
+        }
+        try {
+            keycloakAuthService.changePassword(userId, req.newPassword());
+            return ResponseEntity.ok(Map.of("status", "ok"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    private ResponseCookie buildCookie(String name, String value, long maxAge) {
+        return ResponseCookie.from(name, value != null ? value : "")
+                .httpOnly(true)
+                .secure(false)
+                .path("/")
+                .sameSite("Lax")
+                .maxAge(maxAge)
+                .build();
+    }
+
+    public record LoginRequest(String username, String password) {}
+    public record UpdateProfileRequest(String firstName, String lastName) {}
+    public record ChangePasswordRequest(String currentPassword, String newPassword) {}
+}
