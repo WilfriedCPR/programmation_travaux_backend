@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
 import java.util.List;
 
 @RestController
@@ -22,12 +23,12 @@ public class StructureController {
     }
 
     @PostMapping
-    public ResponseEntity<StructureDTO> create(@RequestBody StructureDTO dto) {
+    public ResponseEntity<StructureDTO> create(@Valid @RequestBody StructureDTO dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(dto));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<StructureDTO> update(@PathVariable String id, @RequestBody StructureDTO dto) {
+    public ResponseEntity<StructureDTO> update(@PathVariable String id, @Valid @RequestBody StructureDTO dto) {
         return ResponseEntity.ok(service.update(id, dto));
     }
 

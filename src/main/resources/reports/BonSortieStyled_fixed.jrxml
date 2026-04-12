@@ -56,7 +56,7 @@
                     <textElement textAlignment="Center">
                         <font size="10.0"/>
                     </textElement>
-                    <textFieldExpression><![CDATA["DEM N° " + $P{P_NUMERO_BON}]]></textFieldExpression>
+                    <textFieldExpression><![CDATA[$P{P_NUMERO_BON}.replaceFirst("DEM-", "DEM N° ")]]></textFieldExpression>
                 </textField>
                 <textField>
                     <reportElement mode="Opaque" x="100" y="55" width="455" height="20" backcolor="#E0E0E0"/>
@@ -96,87 +96,62 @@
         </band>
     </title>
 
-    <columnHeader>
-        <band height="26">
-            <frame>
-                <reportElement x="0" y="0" width="555" height="22"/>
-                 <box>
-                   <pen lineWidth="1.25"/>
-                 </box>
-                <staticText>
-                    <reportElement x="0" y="0" width="90" height="22"/>
-                    <textElement textAlignment="Center" verticalAlignment="Middle"><font isBold="true"/></textElement>
-                    <text><![CDATA[CODE]]></text>
-                </staticText>
-                <staticText>
-                    <reportElement x="90" y="0" width="325" height="22"/>
-                    <textElement verticalAlignment="Middle"><font isBold="true"/></textElement>
-                    <text><![CDATA[DESIGNATION]]></text>
-                </staticText>
-                <staticText>
-                    <reportElement x="415" y="0" width="70" height="22"/>
-                    <textElement textAlignment="Center" verticalAlignment="Middle"><font isBold="true"/></textElement>
-                    <text><![CDATA[QTE]]></text>
-                </staticText>
-                <staticText>
-                    <reportElement x="485" y="0" width="70" height="22"/>
-                    <textElement textAlignment="Center" verticalAlignment="Middle"><font isBold="true"/></textElement>
-                    <text><![CDATA[UNITE]]></text>
-                </staticText>
-            </frame>
+            <staticText>
+                <reportElement x="0" y="0" width="90" height="22"/>
+                <box><pen lineWidth="1.0" lineColor="#61201F"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font isBold="true"/></textElement>
+                <text><![CDATA[CODE]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="90" y="0" width="325" height="22"/>
+                <box><pen lineWidth="1.0" lineColor="#61201F"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font isBold="true"/></textElement>
+                <text><![CDATA[DESIGNATION]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="415" y="0" width="70" height="22"/>
+                <box><pen lineWidth="1.0" lineColor="#61201F"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font isBold="true"/></textElement>
+                <text><![CDATA[QTE]]></text>
+            </staticText>
+            <staticText>
+                <reportElement x="485" y="0" width="70" height="22"/>
+                <box><pen lineWidth="1.0" lineColor="#61201F"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"><font isBold="true"/></textElement>
+                <text><![CDATA[UNITE]]></text>
+            </staticText>
         </band>
     </columnHeader>
 
-    <detail>
-        <band height="22">
-            <frame>
-                <reportElement x="0" y="0" width="555" height="20"/>
-                <box><pen lineColor="#61201F"/></box>
-                <!-- Left vertical border (repeats each row) -->
-                <line>
-                  <reportElement x="0" y="0" width="1" height="20" positionType="FixRelativeToTop"/>
-                  <graphicElement>
-                    <pen lineWidth="1.25" lineColor="#61201F"/>
-                  </graphicElement>
-                </line>
-                <!-- Right vertical border (repeats each row) -->
-                <line>
-                  <reportElement x="554" y="0" width="1" height="20" positionType="FixRelativeToTop"/>
-                  <graphicElement>
-                    <pen lineWidth="1.25" lineColor="#61201F"/>
-                  </graphicElement>
-                </line>
-                <textField>
-                    <reportElement x="0" y="0" width="90" height="19"/>
-                    <textFieldExpression><![CDATA[$F{code}]]></textFieldExpression>
-                </textField>
-                <textField>
-                    <reportElement x="90" y="0" width="325" height="18"/>
-                    <textFieldExpression><![CDATA[$F{designation}]]></textFieldExpression>
-                </textField>
-                <textField>
-                    <reportElement x="415" y="0" width="70" height="18"/>
-                    <textElement textAlignment="Center"/>
-                    <textFieldExpression><![CDATA[$F{quantite}]]></textFieldExpression>
-                </textField>
-                <textField>
-                    <reportElement x="485" y="0" width="70" height="18"/>
-                    <textElement textAlignment="Center"/>
-                    <textFieldExpression><![CDATA[$F{unite}]]></textFieldExpression>
-                </textField>
-            </frame>
+            <textField>
+                <reportElement x="0" y="0" width="90" height="22"/>
+                <box leftPadding="4" rightPadding="4"><pen lineWidth="1.0" lineColor="#61201F"/></box>
+                <textElement verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[$F{code}]]></textFieldExpression>
+            </textField>
+            <textField textAdjust="StretchHeight">
+                <reportElement x="90" y="0" width="325" height="22"/>
+                <box leftPadding="4" rightPadding="4"><pen lineWidth="1.0" lineColor="#61201F"/></box>
+                <textElement verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[$F{designation}]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="415" y="0" width="70" height="22"/>
+                <box leftPadding="4" rightPadding="4"><pen lineWidth="1.0" lineColor="#61201F"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[$F{quantite}]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="485" y="0" width="70" height="22"/>
+                <box leftPadding="4" rightPadding="4"><pen lineWidth="1.0" lineColor="#61201F"/></box>
+                <textElement textAlignment="Center" verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[$F{unite}]]></textFieldExpression>
+            </textField>
         </band>
     </detail>
 
     <columnFooter>
         <band height="60">
-            <!-- Bottom border to close the outer table frame -->
-            <line>
-              <reportElement x="0" y="0" width="555" height="1"/>
-              <graphicElement>
-                <pen lineWidth="1.25" lineColor="#61201F"/>
-              </graphicElement>
-            </line>
             
             <staticText>
                 <reportElement x="0" y="10" width="185" height="18"/>
@@ -209,10 +184,15 @@
                 <textFieldExpression><![CDATA["Généré le " + $P{P_DATE_GENERATION}]]></textFieldExpression>
             </textField>
             
-            <textField evaluationTime="Report">
-                <reportElement x="355" y="8" width="200" height="16"/>
+            <textField evaluationTime="Now">
+                <reportElement x="355" y="8" width="170" height="16"/>
                 <textElement textAlignment="Right"><font size="9.0"/></textElement>
-                <textFieldExpression><![CDATA["Page " + $V{PAGE_NUMBER} + " sur " + $V{PAGE_COUNT}]]></textFieldExpression>
+                <textFieldExpression><![CDATA["Page " + $V{PAGE_NUMBER} + " sur "]]></textFieldExpression>
+            </textField>
+            <textField evaluationTime="Report">
+                <reportElement x="525" y="8" width="30" height="16"/>
+                <textElement textAlignment="Left"><font size="9.0"/></textElement>
+                <textFieldExpression><![CDATA[$V{PAGE_NUMBER}]]></textFieldExpression>
             </textField>
         </band>
     </pageFooter>

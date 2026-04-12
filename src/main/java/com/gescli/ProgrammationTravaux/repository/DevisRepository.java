@@ -33,16 +33,20 @@ public interface DevisRepository extends JpaRepository<Devis, String> {
     Page<Devis> searchByStatut(@Param("q") String q, @Param("statut") DevisStatut statut, Pageable pageable);
 
     List<Devis> findTop5ByOrderByDateCreationDesc();
+    List<Devis> findTop500ByOrderByDateCreationDesc();
 
     List<Devis> findAllByStatut(DevisStatut statut);
 
-    @Query(value = "SELECT * FROM tr_devis WHERE LOWER(devis_status) NOT IN ('clos','cloture','clôture','inactif','closed')", nativeQuery = true)
+    @Query(value = "SELECT * FROM tr_devis WHERE LOWER(devis_status) NOT IN ('clos','cloture','clôture','inactif','closed','supprime')", nativeQuery = true)
     List<Devis> findAllEnCours();
 
     @Query(value = "SELECT * FROM tr_devis WHERE LOWER(devis_status) IN ('clos','cloture','clôture','inactif','closed')", nativeQuery = true)
     List<Devis> findAllClos();
 
-    @Query(value = "SELECT COUNT(*) FROM tr_devis WHERE LOWER(devis_status) NOT IN ('clos','cloture','clôture','inactif','closed')", nativeQuery = true)
+    @Query(value = "SELECT * FROM tr_devis WHERE LOWER(devis_status) = 'supprime'", nativeQuery = true)
+    List<Devis> findAllSupprimes();
+
+    @Query(value = "SELECT COUNT(*) FROM tr_devis WHERE LOWER(devis_status) NOT IN ('clos','cloture','clôture','inactif','closed','supprime')", nativeQuery = true)
     long countEnCours();
 
     @Query(value = "SELECT COUNT(*) FROM tr_devis WHERE LOWER(devis_status) IN ('clos','cloture','clôture','inactif','closed')", nativeQuery = true)

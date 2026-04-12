@@ -15,7 +15,6 @@ public interface DevisMapper {
     @Mapping(target = "documentType", expression = "java(devis.getDocument() != null && devis.getDocument().getTypeDocument() != null ? devis.getDocument().getTypeDocument().name() : null)")
     @Mapping(target = "document", ignore = true)
     @Mapping(target = "dossier", source = "dossier")
-    @Mapping(target = "devisMateriels", ignore = true)
     @Mapping(target = "demandesMateriel", ignore = true)
     @Mapping(target = "affectations", ignore = true)
     @Mapping(target = "programmations", ignore = true)

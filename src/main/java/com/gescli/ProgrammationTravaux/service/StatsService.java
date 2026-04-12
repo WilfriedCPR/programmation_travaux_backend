@@ -8,6 +8,7 @@ import com.gescli.ProgrammationTravaux.entity.DevisStatut;
 import com.gescli.ProgrammationTravaux.entity.PlanningTravaux;
 import com.gescli.ProgrammationTravaux.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +32,7 @@ public class StatsService {
     private final DemandeMaterielRepository demandeRepo;
     private final ParticipantRepository participantRepo;
 
+    @Cacheable("stats")
     @Transactional(readOnly = true)
     public StatsDTO getStats() {
         LocalDateTime now = LocalDateTime.now();
@@ -82,7 +84,7 @@ public class StatsService {
             activites.add(a);
         }
 
-        for (PlanningTravaux p : planningRepo.findTop5ByOrderByDateDebutDesc()) {
+        for (PlanningTravaux p : planningRepo.findTop5WithDevisOrderByDateDebutDesc()) {
             ActiviteDTO a = new ActiviteDTO();
             a.setId(p.getId());
             a.setType("PLANNING");

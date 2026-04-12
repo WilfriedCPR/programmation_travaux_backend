@@ -15,7 +15,6 @@ public class DevisResponseDTO {
     private LocalDateTime dateSuppression;
     private String statut;
     private DossierDTO dossier;
-    private List<DevisMaterielDTO> devisMateriels;
     private List<DemandeMaterielDTO> demandesMateriel;
     private List<AffectationResponseDTO> affectations;
     private List<PlanningTravauxResponseDTO> programmations;

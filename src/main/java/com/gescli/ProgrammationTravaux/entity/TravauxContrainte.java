@@ -29,7 +29,7 @@ public class TravauxContrainte {
     @Column(name = "observation_levee")
     private String observationLevee;
 
-    private boolean active;
+    private Boolean active;
 
     @ManyToOne
     @JoinColumn(name = "travaux_id", nullable = false)

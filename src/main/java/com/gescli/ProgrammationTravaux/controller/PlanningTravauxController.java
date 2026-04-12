@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import jakarta.validation.Valid;
 import java.util.List;
 
 @RestController
@@ -48,13 +49,13 @@ public class PlanningTravauxController {
     }
 
     @PostMapping
-    public ResponseEntity<PlanningTravauxResponseDTO> create(@RequestBody PlanningTravauxRequestDTO dto) {
+    public ResponseEntity<PlanningTravauxResponseDTO> create(@Valid @RequestBody PlanningTravauxRequestDTO dto) {
         return ResponseEntity.ok(service.create(dto));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<PlanningTravauxResponseDTO> update(@PathVariable String id,
-                                                              @RequestBody PlanningTravauxRequestDTO dto) {
+                                                              @Valid @RequestBody PlanningTravauxRequestDTO dto) {
         return ResponseEntity.ok(service.update(id, dto));
     }
 

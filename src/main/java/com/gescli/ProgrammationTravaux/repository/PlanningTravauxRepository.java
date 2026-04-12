@@ -29,6 +29,6 @@ public interface PlanningTravauxRepository extends JpaRepository<PlanningTravaux
     @Query("SELECT COUNT(p) FROM PlanningTravaux p WHERE p.deleted = false AND p.dateDebut >= :start AND p.dateDebut < :end")
     long countByDateRange(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
-    @EntityGraph(attributePaths = {"participants", "participantsExternes"})
-    List<PlanningTravaux> findTop5ByOrderByDateDebutDesc();
+    @Query("SELECT p FROM PlanningTravaux p JOIN FETCH p.devis ORDER BY p.dateDebut DESC LIMIT 5")
+    List<PlanningTravaux> findTop5WithDevisOrderByDateDebutDesc();
 }

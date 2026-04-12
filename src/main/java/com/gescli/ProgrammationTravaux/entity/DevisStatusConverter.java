@@ -9,6 +9,7 @@ public class DevisStatusConverter implements AttributeConverter<DevisStatut, Str
     @Override
     public String convertToDatabaseColumn(DevisStatut statut) {
         if (statut == null) return null;
+        if (statut == DevisStatut.SUPPRIME) return "SUPPRIME";
         return statut == DevisStatut.EN_COURS ? "EN_CREATION" : "CLOS";
     }
 
@@ -19,6 +20,8 @@ public class DevisStatusConverter implements AttributeConverter<DevisStatut, Str
             case "actif":
             case "en_creation":
                 return DevisStatut.EN_COURS;
+            case "supprime":
+                return DevisStatut.SUPPRIME;
             case "inactif":
             case "clos":
             case "cloture":

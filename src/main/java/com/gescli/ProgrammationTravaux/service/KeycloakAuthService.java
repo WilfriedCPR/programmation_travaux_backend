@@ -24,14 +24,60 @@ public class KeycloakAuthService {
     private final String tokenUrl;
     private final String clientId;
     private final String clientSecret;
+    private final String adminBaseUrl;
+    private final String realmName;
 
     public KeycloakAuthService(
             @Value("${keycloak.token-url}") String tokenUrl,
             @Value("${keycloak.client-id}") String clientId,
-            @Value("${keycloak.client-secret}") String clientSecret) {
+            @Value("${keycloak.client-secret}") String clientSecret,
+            @Value("${keycloak.admin-base-url}") String adminBaseUrl,
+            @Value("${keycloak.realm-name}") String realmName) {
         this.tokenUrl = tokenUrl;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
+        this.adminBaseUrl = adminBaseUrl;
+        this.realmName = realmName;
+    }
+
+    private String usersUrl() { return adminBaseUrl + "/admin/realms/" + realmName + "/users"; }
+    private String rolesUrl() { return adminBaseUrl + "/admin/realms/" + realmName + "/roles"; }
+    private String userUrl(String userId) { return usersUrl() + "/" + userId; }
+
+    public String resolveAuthUsername(String loginInput) {
+        if (loginInput == null || loginInput.isBlank()) return loginInput;
+        try {
+            String adminToken = getAdminToken();
+            String searchUrl = usersUrl() + "?search=" + java.net.URLEncoder.encode(loginInput, "UTF-8");
+            String response = restClient.get()
+                    .uri(searchUrl)
+                    .header("Authorization", "Bearer " + adminToken)
+                    .retrieve()
+                    .body(String.class);
+
+            JsonNode users = mapper.readTree(response);
+            if (users.isArray() && users.size() > 0) {
+                for (JsonNode user : users) {
+                    String username = user.path("username").asText("");
+                    String email = user.path("email").asText("");
+                    String fn = user.path("firstName").asText("");
+                    String ln = user.path("lastName").asText("");
+
+                    if (loginInput.equalsIgnoreCase(username) || loginInput.equalsIgnoreCase(email)) {
+                        return username;
+                    }
+                    if (loginInput.equalsIgnoreCase(fn + " " + ln) || loginInput.equalsIgnoreCase(ln + " " + fn)) {
+                        return username;
+                    }
+                }
+                if (users.size() == 1) {
+                    return users.get(0).path("username").asText(loginInput);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Impossible de résoudre le nom d'utilisateur pour : {}", loginInput);
+        }
+        return loginInput;
     }
 
     public ResponseEntity<String> exchangeCredentials(String username, String password) {
@@ -112,10 +158,6 @@ public class KeycloakAuthService {
     public String createKeycloakUser(String username, String password, String firstName, String lastName, String roleName) {
         try {
             String adminToken = getAdminToken();
-            String baseUrl = tokenUrl.substring(0, tokenUrl.indexOf("/protocol/"));
-            String realmName = baseUrl.substring(baseUrl.lastIndexOf("/") + 1);
-            String serverUrl = baseUrl.substring(0, baseUrl.indexOf("/realms/"));
-            String usersUrl = serverUrl + "/admin/realms/" + realmName + "/users";
 
             ObjectNode user = mapper.createObjectNode();
             user.put("username", username);
@@ -132,7 +174,7 @@ public class KeycloakAuthService {
             cred.put("temporary", false);
 
             var response = restClient.post()
-                    .uri(usersUrl)
+                    .uri(usersUrl())
                     .header("Authorization", "Bearer " + adminToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(user.toString())
@@ -141,7 +183,7 @@ public class KeycloakAuthService {
 
             String location = response.getHeaders().getLocation().toString();
             String userId = location.substring(location.lastIndexOf("/") + 1);
-            assignRoleToUser(userId, roleName, adminToken, serverUrl, realmName);
+            assignRoleToUser(userId, roleName, adminToken);
             log.info("Utilisateur Keycloak créé : {}", username);
             return userId;
         } catch (Exception e) {
@@ -150,9 +192,9 @@ public class KeycloakAuthService {
         }
     }
 
-    private void assignRoleToUser(String userId, String roleName, String adminToken, String serverUrl, String realmName) {
+    private void assignRoleToUser(String userId, String roleName, String adminToken) {
         try {
-            String roleUrl = serverUrl + "/admin/realms/" + realmName + "/roles/" + roleName;
+            String roleUrl = rolesUrl() + "/" + roleName;
             String roleBody = restClient.get()
                     .uri(roleUrl)
                     .header("Authorization", "Bearer " + adminToken)
@@ -161,7 +203,7 @@ public class KeycloakAuthService {
             JsonNode roleNode = mapper.readTree(roleBody);
             ArrayNode rolesArray = mapper.createArrayNode();
             rolesArray.add(roleNode);
-            String mappingUrl = serverUrl + "/admin/realms/" + realmName + "/users/" + userId + "/role-mappings/realm";
+            String mappingUrl = userUrl(userId) + "/role-mappings/realm";
             restClient.post()
                     .uri(mappingUrl)
                     .header("Authorization", "Bearer " + adminToken)
@@ -175,19 +217,16 @@ public class KeycloakAuthService {
         }
     }
 
-    public void updateUser(String userId, String firstName, String lastName) {
+    public void updateUser(String userId, String firstName, String lastName, String email) {
         String adminToken = getAdminToken();
-        String baseUrl = tokenUrl.substring(0, tokenUrl.indexOf("/protocol/"));
-        String realmName = baseUrl.substring(baseUrl.lastIndexOf("/") + 1);
-        String serverUrl = baseUrl.substring(0, baseUrl.indexOf("/realms/"));
-        String userUrl = serverUrl + "/admin/realms/" + realmName + "/users/" + userId;
 
         ObjectNode body = mapper.createObjectNode();
         if (firstName != null) body.put("firstName", firstName);
         if (lastName  != null) body.put("lastName",  lastName);
+        if (email != null) body.put("email", email);
 
         restClient.put()
-                .uri(userUrl)
+                .uri(userUrl(userId))
                 .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body.toString())
@@ -198,10 +237,7 @@ public class KeycloakAuthService {
 
     public void changePassword(String userId, String newPassword) {
         String adminToken = getAdminToken();
-        String baseUrl = tokenUrl.substring(0, tokenUrl.indexOf("/protocol/"));
-        String realmName = baseUrl.substring(baseUrl.lastIndexOf("/") + 1);
-        String serverUrl = baseUrl.substring(0, baseUrl.indexOf("/realms/"));
-        String resetUrl = serverUrl + "/admin/realms/" + realmName + "/users/" + userId + "/reset-password";
+        String resetUrl = userUrl(userId) + "/reset-password";
 
         ObjectNode body = mapper.createObjectNode();
         body.put("type", "password");
@@ -221,11 +257,8 @@ public class KeycloakAuthService {
     public void deleteUser(String userId) {
         try {
             String adminToken = getAdminToken();
-            String baseUrl = tokenUrl.substring(0, tokenUrl.indexOf("/protocol/"));
-            String realmName = baseUrl.substring(baseUrl.lastIndexOf("/") + 1);
-            String serverUrl = baseUrl.substring(0, baseUrl.indexOf("/realms/"));
             restClient.delete()
-                    .uri(serverUrl + "/admin/realms/" + realmName + "/users/" + userId)
+                    .uri(userUrl(userId))
                     .header("Authorization", "Bearer " + adminToken)
                     .retrieve()
                     .toBodilessEntity();

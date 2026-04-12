@@ -70,13 +70,13 @@ public class DemandeMaterielService {
     @Transactional
     public DemandeMateriel create(DemandeMaterielDTO dto) {
         if (!StringUtils.hasText(dto.getDevisId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le devis est obligatoire");
+            throw new IllegalArgumentException("Le devis est obligatoire");
         }
         if (!StringUtils.hasText(dto.getReferenceValue())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La référence est obligatoire");
+            throw new IllegalArgumentException("La référence est obligatoire");
         }
         if (demandeMaterielRepository.existsByDevisIdAndReferenceValueAndDeletedFalse(dto.getDevisId(), dto.getReferenceValue())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Une demande possède déjà cette référence pour ce devis");
+            throw new IllegalArgumentException("Cette référence existe déjà veuillez changer");
         }
         DemandeMateriel demande = new DemandeMateriel();
         applyDtoToEntity(dto, demande);
@@ -87,13 +87,13 @@ public class DemandeMaterielService {
     @Transactional
     public DemandeMateriel update(String id, DemandeMaterielDTO dto) {
         if (!StringUtils.hasText(dto.getDevisId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le devis est obligatoire");
+            throw new IllegalArgumentException("Le devis est obligatoire");
         }
         if (!StringUtils.hasText(dto.getReferenceValue())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La référence est obligatoire");
+            throw new IllegalArgumentException("La référence est obligatoire");
         }
         if (demandeMaterielRepository.existsByDevisIdAndReferenceValueAndIdNotAndDeletedFalse(dto.getDevisId(), dto.getReferenceValue(), id)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Une demande possède déjà cette référence pour ce devis");
+            throw new IllegalArgumentException("Cette référence existe déjà veuillez changer");
         }
         DemandeMateriel demande = getById(id);
         applyDtoToEntity(dto, demande);

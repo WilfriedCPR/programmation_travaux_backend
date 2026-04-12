@@ -5,7 +5,6 @@ import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.gescli.ProgrammationTravaux.dto.DemandeMaterielDTO;
@@ -23,7 +23,6 @@ import com.gescli.ProgrammationTravaux.service.DemandeMaterielService;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@CrossOrigin(origins = "http://localhost:4200")
 @RequestMapping("/api/demandes-materiel")
 @RequiredArgsConstructor
 public class DemandeMaterielController {
@@ -73,13 +72,13 @@ public class DemandeMaterielController {
     }
 
     @PostMapping
-    public ResponseEntity<DemandeMaterielDTO> create(@RequestBody DemandeMaterielDTO dto) {
+    public ResponseEntity<DemandeMaterielDTO> create(@Valid @RequestBody DemandeMaterielDTO dto) {
         DemandeMateriel created = demandeMaterielService.create(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(demandeMaterielMapper.toDto(created));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<DemandeMaterielDTO> update(@PathVariable String id, @RequestBody DemandeMaterielDTO dto) {
+    public ResponseEntity<DemandeMaterielDTO> update(@PathVariable String id, @Valid @RequestBody DemandeMaterielDTO dto) {
         DemandeMateriel updated = demandeMaterielService.update(id, dto);
         return ResponseEntity.ok(demandeMaterielMapper.toDto(updated));
     }
@@ -88,5 +87,12 @@ public class DemandeMaterielController {
     public ResponseEntity<Void> delete(@PathVariable String id) {
         demandeMaterielService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @org.springframework.web.bind.annotation.ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<java.util.Map<String, String>> handleIllegalArgumentException(IllegalArgumentException e) {
+        java.util.Map<String, String> response = new java.util.HashMap<>();
+        response.put("message", e.getMessage());
+        return ResponseEntity.badRequest().body(response);
     }
 }

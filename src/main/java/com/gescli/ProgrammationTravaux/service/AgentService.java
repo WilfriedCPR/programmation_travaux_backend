@@ -19,9 +19,11 @@ import com.gescli.ProgrammationTravaux.repository.StructureRepository;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AgentService {
 
     private final AgentRepository agentRepository;
@@ -32,39 +34,50 @@ public class AgentService {
 
     @Transactional
     public AgentResponseDTO createAgent(AgentRequestDTO requestDTO) {
-        String keycloakId = keycloakAuthService.createKeycloakUser(
-            requestDTO.getCode(),
-            requestDTO.getPassword(),
-            requestDTO.getPrenom(),
-            requestDTO.getNom(),
-            requestDTO.getRoleName()
-        );
+        String keycloakId = null;
+        try {
+            keycloakId = keycloakAuthService.createKeycloakUser(
+                requestDTO.getCode(),
+                requestDTO.getPassword(),
+                requestDTO.getPrenom(),
+                requestDTO.getNom(),
+                requestDTO.getRoleName()
+            );
 
-        Agent agent = agentMapper.toEntity(requestDTO);
-        agent.setId(keycloakId);
+            Agent agent = agentMapper.toEntity(requestDTO);
+            agent.setId(keycloakId);
 
-        if (requestDTO.getStructureId() != null && !requestDTO.getStructureId().trim().isEmpty()) {
-            Structure structure = structureRepository.findById(requestDTO.getStructureId())
-                .orElseThrow(() -> new EntityNotFoundException("Structure with ID " + requestDTO.getStructureId() + " not found."));
-            agent.setStructure(structure);
+            if (requestDTO.getStructureId() != null && !requestDTO.getStructureId().trim().isEmpty()) {
+                Structure structure = structureRepository.findById(requestDTO.getStructureId())
+                    .orElseThrow(() -> new EntityNotFoundException("Structure with ID " + requestDTO.getStructureId() + " not found."));
+                agent.setStructure(structure);
+            }
+
+            if (requestDTO.getRoleName() != null && !requestDTO.getRoleName().trim().isEmpty()) {
+                Role role = roleRepository.findByLibelle(requestDTO.getRoleName())
+                    .orElseThrow(() -> new EntityNotFoundException("Role with name " + requestDTO.getRoleName() + " not found."));
+                agent.addRole(role);
+            }
+
+            Agent savedAgent = agentRepository.save(agent);
+            return agentMapper.toDto(savedAgent);
+        } catch (Exception e) {
+            if (keycloakId != null) {
+                try { keycloakAuthService.deleteUser(keycloakId); }
+                catch (Exception rollbackEx) { log.warn("Rollback Keycloak échoué pour {} : {}", keycloakId, rollbackEx.getMessage()); }
+            }
+            throw e;
         }
-
-        if (requestDTO.getRoleName() != null && !requestDTO.getRoleName().trim().isEmpty()) {
-            Role role = roleRepository.findByLibelle(requestDTO.getRoleName())
-                .orElseThrow(() -> new EntityNotFoundException("Role with name " + requestDTO.getRoleName() + " not found."));
-            agent.addRole(role);
-        }
-
-        Agent savedAgent = agentRepository.save(agent);
-        return agentMapper.toDto(savedAgent);
     }
 
+    @Transactional(readOnly = true)
     public AgentResponseDTO getAgentById(String id) {
         Agent agent = agentRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Agent with ID " + id + " not found."));
         return agentMapper.toDto(agent);
     }
 
+    @Transactional(readOnly = true)
     public Page<AgentResponseDTO> getAllAgents(Pageable pageable) {
         return agentRepository.findAll(pageable).map(agentMapper::toDto);
     }
@@ -111,7 +124,7 @@ public class AgentService {
         try {
             keycloakAuthService.deleteUser(agent.getId());
         } catch (Exception e) {
-            System.err.println("Warning: Could not delete user from Keycloak: " + e.getMessage());
+            log.warn("Impossible de supprimer l'utilisateur Keycloak {} : {}", agent.getId(), e.getMessage());
         }
 
         agentRepository.deleteById(id);

@@ -25,7 +25,8 @@ public class AuthController {
     public ResponseEntity<?> login(@RequestBody LoginRequest req) {
         log.info("Tentative de connexion : {}", req.username());
         try {
-            ResponseEntity<String> resp = keycloakAuthService.exchangeCredentials(req.username(), req.password());
+            String resolvedUsername = keycloakAuthService.resolveAuthUsername(req.username());
+            ResponseEntity<String> resp = keycloakAuthService.exchangeCredentials(resolvedUsername, req.password());
             JsonNode json = mapper.readTree(resp.getBody());
             String accessToken  = json.path("access_token").asText(null);
             String refreshToken = json.path("refresh_token").asText(null);
@@ -109,7 +110,7 @@ public class AuthController {
         if (jwt == null) return ResponseEntity.status(401).build();
         String userId = jwt.getSubject();
         try {
-            keycloakAuthService.updateUser(userId, req.firstName(), req.lastName());
+            keycloakAuthService.updateUser(userId, req.firstName(), req.lastName(), req.email());
             return ResponseEntity.ok(Map.of("status", "ok"));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
@@ -147,6 +148,6 @@ public class AuthController {
     }
 
     public record LoginRequest(String username, String password) {}
-    public record UpdateProfileRequest(String firstName, String lastName) {}
+    public record UpdateProfileRequest(String firstName, String lastName, String email) {}
     public record ChangePasswordRequest(String currentPassword, String newPassword) {}
 }

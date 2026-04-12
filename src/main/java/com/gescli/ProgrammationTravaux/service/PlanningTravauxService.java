@@ -235,7 +235,11 @@ public class PlanningTravauxService {
     public byte[] downloadPvDoc(String docId) throws IOException {
         Document doc = documentRepository.findById(docId)
                 .orElseThrow(() -> new EntityNotFoundException("Document PV non trouvé : " + docId));
-        return fileStorageService.load(doc.getFilePath());
+        try {
+            return fileStorageService.load(doc.getFilePath());
+        } catch (java.nio.file.NoSuchFileException e) {
+            throw new EntityNotFoundException("Fichier introuvable sur le disque");
+        }
     }
 
     private boolean isHt(String demOption) {

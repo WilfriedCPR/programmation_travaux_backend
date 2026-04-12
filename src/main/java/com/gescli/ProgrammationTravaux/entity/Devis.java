@@ -11,8 +11,8 @@ import java.util.Set;
 @Table(name = "tr_devis")
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor
-@EqualsAndHashCode(exclude = {"affectations", "programmations", "devisMateriels", "demandesMateriel"})
-@ToString(exclude = {"affectations", "programmations", "devisMateriels", "demandesMateriel"})
+@EqualsAndHashCode(exclude = {"affectations", "programmations", "demandesMateriel"})
+@ToString(exclude = {"affectations", "programmations", "demandesMateriel"})
 public class Devis {
 
     @Id
@@ -41,8 +41,6 @@ public class Devis {
     @OneToMany(mappedBy = "devis", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<PlanningTravaux> programmations = new HashSet<>();
 
-    @OneToMany(mappedBy = "devis", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Set<DevisMateriel> devisMateriels = new HashSet<>();
 
     @OneToMany(mappedBy = "devis", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<DemandeMateriel> demandesMateriel = new HashSet<>();

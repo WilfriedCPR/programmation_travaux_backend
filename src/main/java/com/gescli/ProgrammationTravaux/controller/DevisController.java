@@ -81,6 +81,12 @@ public class DevisController {
         return ResponseEntity.noContent().build();
     }
 
+    @PatchMapping("/{id}/restore")
+    public ResponseEntity<Void> restore(@PathVariable String id) {
+        devisService.restoreDevis(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/{id}/has-bsm")
     public ResponseEntity<Boolean> hasBonSortie(@PathVariable String id) {
         return ResponseEntity.ok(devisService.hasBonSortie(id));

@@ -19,6 +19,7 @@ public class Agent {
     private String nom;
     private String prenom;
     private String code;
+    private String password;
 
     @ManyToOne
     @JoinColumn(name = "structure_id")

@@ -4,7 +4,6 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -12,6 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.gescli.ProgrammationTravaux.dto.DocumentDTO;
@@ -22,7 +22,6 @@ import com.gescli.ProgrammationTravaux.service.DocumentService;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@CrossOrigin(origins = "http://localhost:4200")
 @RequestMapping("/api/documents")
 @RequiredArgsConstructor
 public class DocumentController {
@@ -44,13 +43,13 @@ public class DocumentController {
     }
 
     @PostMapping
-    public ResponseEntity<DocumentDTO> create(@RequestBody DocumentDTO dto) {
+    public ResponseEntity<DocumentDTO> create(@Valid @RequestBody DocumentDTO dto) {
         Document saved = documentService.createDocument(documentMapper.toEntity(dto));
         return ResponseEntity.status(HttpStatus.CREATED).body(documentMapper.toDto(saved));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<DocumentDTO> update(@PathVariable String id, @RequestBody DocumentDTO dto) {
+    public ResponseEntity<DocumentDTO> update(@PathVariable String id, @Valid @RequestBody DocumentDTO dto) {
         Document updated = documentService.updateDocument(id, documentMapper.toEntity(dto));
         return ResponseEntity.ok(documentMapper.toDto(updated));
     }

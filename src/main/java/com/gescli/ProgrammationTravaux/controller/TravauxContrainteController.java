@@ -4,7 +4,6 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,6 +12,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.gescli.ProgrammationTravaux.dto.TravauxContrainteRequestDTO;
@@ -22,7 +22,6 @@ import com.gescli.ProgrammationTravaux.service.TravauxContrainteService;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@CrossOrigin(origins = "http://localhost:4200")
 @RequestMapping("/api/contraintes")
 @RequiredArgsConstructor
 public class TravauxContrainteController {
@@ -45,7 +44,7 @@ public class TravauxContrainteController {
     }
 
     @PostMapping
-    public ResponseEntity<TravauxContrainteResponseDTO> addToTravaux(@RequestBody TravauxContrainteRequestDTO dto) {
+    public ResponseEntity<TravauxContrainteResponseDTO> addToTravaux(@Valid @RequestBody TravauxContrainteRequestDTO dto) {
         TravauxContrainteResponseDTO saved = travauxContrainteService.addContrainteToTravail(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
@@ -53,7 +52,7 @@ public class TravauxContrainteController {
     @PostMapping("/planning/{planningId}")
     public ResponseEntity<TravauxContrainteResponseDTO> addToPlanning(
             @PathVariable String planningId,
-            @RequestBody TravauxContrainteRequestDTO dto) {
+            @Valid @RequestBody TravauxContrainteRequestDTO dto) {
         TravauxContrainteResponseDTO saved = travauxContrainteService.addContrainteToPlanning(
                 planningId, dto.getContrainteLibelle(), dto.getObservationMise());
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
@@ -62,7 +61,7 @@ public class TravauxContrainteController {
     @PutMapping("/{id}")
     public ResponseEntity<TravauxContrainteResponseDTO> update(
             @PathVariable String id,
-            @RequestBody TravauxContrainteRequestDTO dto) {
+            @Valid @RequestBody TravauxContrainteRequestDTO dto) {
         return ResponseEntity.ok(travauxContrainteService.update(id, dto));
     }
 
@@ -91,4 +90,5 @@ public class TravauxContrainteController {
     public ResponseEntity<List<String>> suggest(@RequestParam(required = false) String query) {
         return ResponseEntity.ok(travauxContrainteService.suggestLibelles(query));
     }
+
 }

@@ -10,4 +10,5 @@ public interface ContrainteRepository extends JpaRepository<Contrainte, UUID> {
     Optional<Contrainte> findByLibelle(String libelle);
     Optional<Contrainte> findFirstByLibelleIgnoreCase(String libelle);
     List<Contrainte> findByLibelleContainingIgnoreCase(String libelle);
+    List<Contrainte> findTop50ByOrderByLibelleAsc();
 }

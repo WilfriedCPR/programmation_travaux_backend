@@ -82,13 +82,17 @@ public class DevisService {
         if (st != null && hasQuery) {
             results = devisRepository.searchAllByStatut(q.trim(), st);
         } else if (st != null) {
-            results = (st == DevisStatut.EN_COURS)
-                    ? devisRepository.findAllEnCours()
-                    : devisRepository.findAllClos();
+            if (st == DevisStatut.EN_COURS) {
+                results = devisRepository.findAllEnCours();
+            } else if (st == DevisStatut.SUPPRIME) {
+                results = devisRepository.findAllSupprimes();
+            } else {
+                results = devisRepository.findAllClos();
+            }
         } else if (hasQuery) {
             results = devisRepository.searchAll(q.trim());
         } else {
-            results = devisRepository.findAll();
+            results = devisRepository.findTop500ByOrderByDateCreationDesc();
         }
         return results.stream().map(devisMapper::toDto).toList();
     }
@@ -100,7 +104,7 @@ public class DevisService {
         if (devis.getDossier() != null) {
             devis.getDossier().getId(); // init dossier
             if (devis.getDossier().getClient() != null) {
-                devis.getDossier().getClient().getId(); // init client
+                devis.getDossier().getClient().getId();
             }
         }
         return devisMapper.toDto(devis);
@@ -144,7 +148,7 @@ public class DevisService {
     @Transactional
     public void deleteDevis(String id) {
         Devis devis = findById(id);
-        devis.setStatut(DevisStatut.CLOS);
+        devis.setStatut(DevisStatut.SUPPRIME);
         devis.setDateSuppression(LocalDateTime.now());
         devisRepository.save(devis);
     }
@@ -152,10 +156,17 @@ public class DevisService {
     @Transactional
     public void deleteDevisHard(String id) {
         Devis devis = findById(id);
-        if (devis.getStatut() != DevisStatut.CLOS) {
-            throw new IllegalStateException("Suppression définitive autorisée uniquement pour les devis CLOS.");
+        if (devis.getStatut() != DevisStatut.SUPPRIME && devis.getStatut() != DevisStatut.CLOS) {
+            throw new IllegalStateException("Suppression définitive autorisée uniquement pour les devis SUPPRIMES ou CLOS.");
         }
         devisRepository.deleteById(id);
+    }
+
+    @Transactional
+    public void restoreDevis(String id) {
+        Devis devis = findById(id);
+        devis.setStatut(DevisStatut.EN_COURS);
+        devisRepository.save(devis);
     }
 
     @Transactional(readOnly = true)

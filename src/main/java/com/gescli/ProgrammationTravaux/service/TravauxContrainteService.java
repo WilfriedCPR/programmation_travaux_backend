@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.gescli.ProgrammationTravaux.dto.TravauxContrainteRequestDTO;
 import com.gescli.ProgrammationTravaux.dto.TravauxContrainteResponseDTO;
@@ -31,6 +32,7 @@ public class TravauxContrainteService {
     private final TravauxContrainteMapper travauxContrainteMapper;
     private final ContrainteRepository contrainteRepository;
 
+    @Transactional
     public TravauxContrainteResponseDTO addContrainteToTravail(TravauxContrainteRequestDTO dto) {
         Travaux travaux = travauxRepository.findById(dto.getTravauxId())
                 .orElseThrow(() -> new EntityNotFoundException("Travaux not found with id: " + dto.getTravauxId()));
@@ -52,6 +54,7 @@ public class TravauxContrainteService {
         return travauxContrainteMapper.toDto(travauxContrainteRepository.save(entity));
     }
 
+    @Transactional
     public TravauxContrainteResponseDTO addContrainteToPlanning(String planningId, String contrainteLibelle,
             String observationMise) {
         PlanningTravaux planning = planningTravauxRepository.findById(planningId)
@@ -73,6 +76,7 @@ public class TravauxContrainteService {
         return travauxContrainteMapper.toDto(travauxContrainteRepository.save(entity));
     }
 
+    @Transactional
     public TravauxContrainteResponseDTO removeContrainteFromTravail(String id, String observationLevee) {
         TravauxContrainte entity = travauxContrainteRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("TravauxContrainte not found with id: " + id));
@@ -82,6 +86,7 @@ public class TravauxContrainteService {
         return travauxContrainteMapper.toDto(travauxContrainteRepository.save(entity));
     }
 
+    @Transactional
     public TravauxContrainteResponseDTO leverContrainte(String planningId, String contrainteId,
             String observationLevee) {
         TravauxContrainte entity = travauxContrainteRepository.findById(contrainteId)
@@ -95,6 +100,7 @@ public class TravauxContrainteService {
         return travauxContrainteMapper.toDto(travauxContrainteRepository.save(entity));
     }
 
+    @Transactional
     public void deleteContrainte(String id) {
         if (!travauxContrainteRepository.existsById(id)) {
             throw new EntityNotFoundException("TravauxContrainte not found with id: " + id);
@@ -102,18 +108,21 @@ public class TravauxContrainteService {
         travauxContrainteRepository.deleteById(id);
     }
 
+    @Transactional(readOnly = true)
     public List<TravauxContrainteResponseDTO> getContraintesByTravail(String travauxId) {
         return travauxContrainteRepository.findByTravaux_Id(travauxId).stream()
                 .map(travauxContrainteMapper::toDto)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<TravauxContrainteResponseDTO> getContraintesByPlanning(String planningId) {
         return travauxContrainteRepository.findByPlanning_Id(planningId).stream()
                 .map(travauxContrainteMapper::toDto)
                 .collect(Collectors.toList());
     }
 
+    @Transactional
     public TravauxContrainteResponseDTO update(String id, TravauxContrainteRequestDTO dto) {
         TravauxContrainte entity = travauxContrainteRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("TravauxContrainte not found with id: " + id));
@@ -133,24 +142,32 @@ public class TravauxContrainteService {
         return travauxContrainteMapper.toDto(travauxContrainteRepository.save(entity));
     }
 
+    @Transactional(readOnly = true)
     public List<TravauxContrainteResponseDTO> getAllContraintes() {
         return travauxContrainteRepository.findAll().stream()
                 .map(travauxContrainteMapper::toDto)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<String> suggestLibelles(String query) {
         if (query == null || query.isBlank()) {
-            return contrainteRepository.findAll().stream()
+            List<String> list = contrainteRepository.findAll().stream()
                     .map(Contrainte::getLibelle)
                     .filter(s -> s != null && !s.isBlank())
                     .distinct()
+                    .sorted()
+                    .limit(50)
                     .collect(Collectors.toList());
+            System.out.println("SUGGEST EMPTY QUERY: found " + list.size() + " elements in DB");
+            return list;
         }
-        return contrainteRepository.findByLibelleContainingIgnoreCase(query).stream()
+        List<String> list = contrainteRepository.findByLibelleContainingIgnoreCase(query).stream()
                 .map(Contrainte::getLibelle)
                 .filter(s -> s != null && !s.isBlank())
                 .distinct()
                 .collect(Collectors.toList());
+        System.out.println("SUGGEST QUERY '" + query + "': found " + list.size() + " elements in DB");
+        return list;
     }
 }

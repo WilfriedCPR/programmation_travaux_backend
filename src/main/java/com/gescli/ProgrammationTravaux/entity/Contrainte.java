@@ -24,7 +24,7 @@ public class Contrainte {
     private LocalDateTime createdDate;
 
     @Column(name = "deleted")
-    private boolean deleted;
+    private Boolean deleted;
 
     @Column(name = "tr_contrainte_libelle")
     private String libelle;
