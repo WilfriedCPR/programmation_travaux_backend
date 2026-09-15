@@ -37,6 +37,8 @@ public class DevisService {
     private final BonSortieMaterielRepository bonSortieMaterielRepository;
     private final ClientRepository clientRepository;
     private final DemandeDossierRepository demandeDossierRepository;
+    private final ActivityLogService activityLogService;
+    private final AffectationService affectationService;
 
     @Transactional(readOnly = true)
     public Page<DevisResponseDTO> getAllDevis(Pageable pageable, String statut, String q) {
@@ -120,7 +122,9 @@ public class DevisService {
         applyDateCreation(devis, dto.getDateCreation());
         applyStatut(devis, dto.getStatut());
         applyDocument(devis, dto.getDocumentId());
-        return devisMapper.toDto(devisRepository.save(devis));
+        Devis saved = devisRepository.save(devis);
+        activityLogService.log("DEVIS_CREATION", "Création du devis " + saved.getDevisCode(), saved.getDevisCode(), saved.getId(), null);
+        return devisMapper.toDto(saved);
     }
 
     @Transactional
@@ -142,7 +146,9 @@ public class DevisService {
             log.warn("Client de devis ignoré lors de la mise à jour : {}", dto.getClientCode());
         }
         applyDossierUpdate(devis, null, dto.getDemOption());
-        return devisMapper.toDto(devisRepository.save(devis));
+        Devis saved = devisRepository.save(devis);
+        activityLogService.log("DEVIS_MODIFICATION", "Modification du devis " + saved.getDevisCode(), saved.getDevisCode(), saved.getId(), null);
+        return devisMapper.toDto(saved);
     }
 
     @Transactional
@@ -151,6 +157,8 @@ public class DevisService {
         devis.setStatut(DevisStatut.SUPPRIME);
         devis.setDateSuppression(LocalDateTime.now());
         devisRepository.save(devis);
+        affectationService.terminerAffectationsDuDevis(id, "devis supprimé");
+        activityLogService.log("DEVIS_SUPPRESSION", "Suppression logique du devis " + devis.getDevisCode(), devis.getDevisCode(), devis.getId(), null);
     }
 
     @Transactional
@@ -159,6 +167,7 @@ public class DevisService {
         if (devis.getStatut() != DevisStatut.SUPPRIME && devis.getStatut() != DevisStatut.CLOS) {
             throw new IllegalStateException("Suppression définitive autorisée uniquement pour les devis SUPPRIMES ou CLOS.");
         }
+        activityLogService.log("DEVIS_SUPPRESSION_DEFINITIVE", "Suppression définitive du devis " + devis.getDevisCode(), devis.getDevisCode(), devis.getId(), null);
         devisRepository.deleteById(id);
     }
 
@@ -167,6 +176,7 @@ public class DevisService {
         Devis devis = findById(id);
         devis.setStatut(DevisStatut.EN_COURS);
         devisRepository.save(devis);
+        activityLogService.log("DEVIS_RESTAURATION", "Restauration du devis " + devis.getDevisCode(), devis.getDevisCode(), devis.getId(), null);
     }
 
     @Transactional(readOnly = true)
@@ -182,7 +192,10 @@ public class DevisService {
         }
         devis.setStatut(DevisStatut.CLOS);
         devis.setDateSuppression(LocalDateTime.now());
-        return devisMapper.toDto(devisRepository.save(devis));
+        Devis saved = devisRepository.save(devis);
+        affectationService.terminerAffectationsDuDevis(devisId, "devis clôturé");
+        activityLogService.log("DEVIS_CLOTURE", "Clôture du devis " + saved.getDevisCode(), saved.getDevisCode(), saved.getId(), null);
+        return devisMapper.toDto(saved);
     }
 
     private Devis findById(String id) {

@@ -29,6 +29,30 @@ public interface PlanningTravauxRepository extends JpaRepository<PlanningTravaux
     @Query("SELECT COUNT(p) FROM PlanningTravaux p WHERE p.deleted = false AND p.dateDebut >= :start AND p.dateDebut < :end")
     long countByDateRange(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
-    @Query("SELECT p FROM PlanningTravaux p JOIN FETCH p.devis ORDER BY p.dateDebut DESC LIMIT 5")
-    List<PlanningTravaux> findTop5WithDevisOrderByDateDebutDesc();
-}
+    @Query("SELECT COUNT(p) FROM PlanningTravaux p WHERE p.deleted=false AND p.cloture=false AND p.dateFin IS NOT NULL AND p.dateFin < :now")
+    long countOverdue(@Param("now") LocalDateTime now);
+
+    @EntityGraph(attributePaths = {"devis", "travaux"})
+    List<PlanningTravaux> findTop5ByOrderByDateDebutDesc();
+
+    @Query("""
+        SELECT DISTINCT p FROM PlanningTravaux p
+        LEFT JOIN p.participants part
+        WHERE p.deleted = false AND p.cloture = false
+          AND (p.agent.id = :agentId OR part.id = :agentId)
+        """)
+    List<PlanningTravaux> findOpenForAgent(@Param("agentId") String agentId);
+
+    @Query("""
+        SELECT COUNT(DISTINCT a.id) FROM Agent a
+        WHERE a.actif = true AND EXISTS (
+          SELECT p.id FROM PlanningTravaux p
+          LEFT JOIN p.participants part
+          WHERE p.deleted = false AND p.cloture = false
+            AND (p.agent.id = a.id OR part.id = a.id)
+            AND p.dateDebut <= :now
+            AND (p.dateFin IS NULL OR p.dateFin >= :now)
+        )
+        """)
+    long countAgentsCurrentlyBusy(@Param("now") LocalDateTime now);
+}

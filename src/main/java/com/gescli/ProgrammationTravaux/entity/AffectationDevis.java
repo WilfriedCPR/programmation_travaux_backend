@@ -24,6 +24,12 @@ public class AffectationDevis {
     @Column(nullable = false)
     private boolean active;
 
+    @Column(name = "affecte_par")
+    private String affectePar;
+
+    @Column(name = "retire_par")
+    private String retirePar;
+
     @ManyToOne(optional = false)
     @JoinColumn(name = "agent_id")
     private Agent agent;

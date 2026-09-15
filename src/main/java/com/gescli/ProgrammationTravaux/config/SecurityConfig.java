@@ -16,6 +16,10 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.preauth.AbstractPreAuthenticatedProcessingFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfFilter;
+import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -34,33 +38,48 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .csrf(csrf -> csrf.disable())
+            .csrf(csrf -> {
+                CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+                repository.setCookiePath("/");
+                CsrfTokenRequestAttributeHandler handler = new CsrfTokenRequestAttributeHandler();
+                handler.setCsrfRequestAttributeName("_csrf");
+                csrf.csrfTokenRepository(repository)
+                    .csrfTokenRequestHandler(handler);
+            })
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/keycloak-login", "/api/auth/logout", "/api/auth/refresh").permitAll()
                 .requestMatchers("/api/auth/me").authenticated()
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/activity-log/**").hasRole("ADMIN")
+                .requestMatchers("/api/notifications/**").authenticated()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/agents/**").authenticated()
                 .requestMatchers("/api/agents/**").hasRole("ADMIN")
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/participants/**").authenticated()
+                .requestMatchers("/api/participants/**").hasRole("ADMIN")
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/type-travaux/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
-                .requestMatchers("/api/type-travaux/**").hasRole("ADMIN")
+                .requestMatchers("/api/type-travaux/**").hasAnyRole("ADMIN", "CHEF")
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/affectations/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
                 .requestMatchers("/api/affectations/**").hasAnyRole("ADMIN", "CHEF")
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/demandes-materiel/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
                 .requestMatchers("/api/demandes-materiel/**").hasAnyRole("ADMIN", "CHEF")
-                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/bons-sortie/*/pdf", "/api/bons-sortie/generate-numero").hasAnyRole("ADMIN", "CHEF", "AGENT")
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/bons-sortie/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
                 .requestMatchers("/api/bons-sortie/**").hasAnyRole("ADMIN", "CHEF")
-                .requestMatchers("/api/devis/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/devis/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
+                .requestMatchers("/api/devis/**").hasAnyRole("ADMIN", "CHEF")
                 .requestMatchers("/api/materiels/**").hasAnyRole("ADMIN", "CHEF")
-                .requestMatchers("/api/structures/**").hasAnyRole("ADMIN", "CHEF")
-                .requestMatchers("/api/roles/**").hasAnyRole("ADMIN", "CHEF")
+                .requestMatchers("/api/structures/**").hasRole("ADMIN")
+                .requestMatchers("/api/roles/**").hasRole("ADMIN")
                 .requestMatchers("/api/planning-travaux/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
                 .requestMatchers("/api/contraintes/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
-                .requestMatchers("/api/travaux/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/travaux/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
+                .requestMatchers("/api/travaux/**").hasAnyRole("ADMIN", "CHEF")
                 .requestMatchers("/api/plannings/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
                 .requestMatchers("/api/auth/profile", "/api/auth/change-password").authenticated()
                 .requestMatchers("/api/stats/**").authenticated()
                 .anyRequest().authenticated()
             )
+            .addFilterAfter(csrfCookieFilter(), CsrfFilter.class)
             .addFilterBefore(cookieToAuthHeaderFilter(), AbstractPreAuthenticatedProcessingFilter.class)
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
@@ -110,6 +129,16 @@ public class SecurityConfig {
         if (lower.contains("admin")) authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
         if (lower.contains("chef"))  authorities.add(new SimpleGrantedAuthority("ROLE_CHEF"));
         if (lower.contains("agent")) authorities.add(new SimpleGrantedAuthority("ROLE_AGENT"));
+    }
+
+    private Filter csrfCookieFilter() {
+        return (request, response, chain) -> {
+            Object attribute = ((HttpServletRequest) request).getAttribute(CsrfToken.class.getName());
+            if (attribute instanceof CsrfToken token) {
+                token.getToken();
+            }
+            chain.doFilter(request, response);
+        };
     }
 
     private Filter cookieToAuthHeaderFilter() {

@@ -11,6 +11,10 @@ public class StatsDTO {
     private long planningsAujourdhui;
     private long planningsSemaine;
     private long agentsAffectes;
+    private long agentsDisponibles;
+    private long agentsInactifs;
+    private long agentsIndisponibles;
+    private long travauxEnRetard;
     private long agentsTotal;
     private long participantsExternesTotal;
     private long agentsTotalAvecExternes;
@@ -18,6 +22,7 @@ public class StatsDTO {
     private long nouveauxParticipantsAujourdhui;
     private long bonsSortieMois;
     private long bonsSortieAujourdhui;
+    private long bonsSortieATraiter;
     private long demandesMaterielEnAttente;
     private long demandesMaterielAujourdhui;
     private List<ActiviteDTO> dernieresActivites;

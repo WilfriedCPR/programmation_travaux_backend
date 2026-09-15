@@ -156,9 +156,9 @@ public class KeycloakAuthService {
     }
 
     public String createKeycloakUser(String username, String password, String firstName, String lastName, String roleName) {
+        String userId = null;
         try {
             String adminToken = getAdminToken();
-
             ObjectNode user = mapper.createObjectNode();
             user.put("username", username);
             user.put("enabled", true);
@@ -180,40 +180,82 @@ public class KeycloakAuthService {
                     .body(user.toString())
                     .retrieve()
                     .toBodilessEntity();
-
+            if (response.getHeaders().getLocation() == null) {
+                throw new IllegalStateException("Keycloak n'a pas retourné l'identifiant du nouvel utilisateur");
+            }
             String location = response.getHeaders().getLocation().toString();
-            String userId = location.substring(location.lastIndexOf("/") + 1);
+            userId = location.substring(location.lastIndexOf("/") + 1);
+            ensureRealmRole(roleName, adminToken);
             assignRoleToUser(userId, roleName, adminToken);
             log.info("Utilisateur Keycloak créé : {}", username);
             return userId;
         } catch (Exception e) {
+            if (userId != null) {
+                try { deleteUserStrict(userId); }
+                catch (Exception cleanup) { log.warn("Nettoyage Keycloak impossible pour {} : {}", userId, cleanup.getMessage()); }
+            }
             log.error("Erreur lors de la création de l'utilisateur Keycloak", e);
             throw new RuntimeException("Erreur création utilisateur Keycloak : " + e.getMessage(), e);
         }
     }
 
+    private void ensureRealmRole(String roleName, String adminToken) {
+        try {
+            restClient.get().uri(rolesUrl() + "/" + roleName)
+                    .header("Authorization", "Bearer " + adminToken).retrieve().toBodilessEntity();
+        } catch (HttpClientErrorException.NotFound e) {
+            ObjectNode role = mapper.createObjectNode();
+            role.put("name", roleName);
+            role.put("description", "Rôle applicatif Programmation Travaux");
+            restClient.post().uri(rolesUrl()).header("Authorization", "Bearer " + adminToken)
+                    .contentType(MediaType.APPLICATION_JSON).body(role.toString()).retrieve().toBodilessEntity();
+        }
+    }
+
     private void assignRoleToUser(String userId, String roleName, String adminToken) {
         try {
-            String roleUrl = rolesUrl() + "/" + roleName;
-            String roleBody = restClient.get()
-                    .uri(roleUrl)
-                    .header("Authorization", "Bearer " + adminToken)
-                    .retrieve()
-                    .body(String.class);
+            ensureRealmRole(roleName, adminToken);
+            String roleBody = restClient.get().uri(rolesUrl() + "/" + roleName)
+                    .header("Authorization", "Bearer " + adminToken).retrieve().body(String.class);
             JsonNode roleNode = mapper.readTree(roleBody);
             ArrayNode rolesArray = mapper.createArrayNode();
             rolesArray.add(roleNode);
-            String mappingUrl = userUrl(userId) + "/role-mappings/realm";
-            restClient.post()
-                    .uri(mappingUrl)
+            restClient.post().uri(userUrl(userId) + "/role-mappings/realm")
                     .header("Authorization", "Bearer " + adminToken)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(rolesArray.toString())
-                    .retrieve()
-                    .toBodilessEntity();
+                    .contentType(MediaType.APPLICATION_JSON).body(rolesArray.toString())
+                    .retrieve().toBodilessEntity();
             log.info("Rôle {} assigné à l'utilisateur {}", roleName, userId);
         } catch (Exception e) {
-            log.warn("Impossible d'assigner le rôle {} à l'utilisateur {} : {}", roleName, userId, e.getMessage());
+            throw new RuntimeException("Impossible d'assigner le rôle " + roleName + " à l'utilisateur " + userId, e);
+        }
+    }
+
+    public void updateUserIdentity(String userId, String username, String firstName, String lastName) {
+        String adminToken=getAdminToken(); ObjectNode body=mapper.createObjectNode();
+        body.put("username", username); body.put("firstName", firstName); body.put("lastName", lastName);
+        restClient.put().uri(userUrl(userId)).header("Authorization","Bearer "+adminToken).contentType(MediaType.APPLICATION_JSON).body(body.toString()).retrieve().toBodilessEntity();
+    }
+
+    public void replaceApplicationRole(String userId, String roleName) {
+        try {
+            String adminToken=getAdminToken(); String mappingUrl=userUrl(userId)+"/role-mappings/realm";
+            String current=restClient.get().uri(mappingUrl).header("Authorization","Bearer "+adminToken).retrieve().body(String.class);
+            JsonNode arr=mapper.readTree(current); ArrayNode remove=mapper.createArrayNode();
+            if(arr.isArray()) for(JsonNode r:arr){String n=r.path("name").asText("").toUpperCase(); if(n.equals("ADMIN")||n.equals("CHEF")||n.equals("AGENT")||n.contains("CHEF DE DIVISION")) remove.add(r);}
+            if(!remove.isEmpty()) restClient.method(org.springframework.http.HttpMethod.DELETE).uri(mappingUrl).header("Authorization","Bearer "+adminToken).contentType(MediaType.APPLICATION_JSON).body(remove.toString()).retrieve().toBodilessEntity();
+            assignRoleToUser(userId, roleName, adminToken);
+        } catch(Exception e){ throw new RuntimeException("Synchronisation du rôle Keycloak impossible",e); }
+    }
+
+
+    public void logoutUserSessions(String userId) {
+        try {
+            String adminToken = getAdminToken();
+            restClient.post().uri(userUrl(userId) + "/logout")
+                    .header("Authorization", "Bearer " + adminToken)
+                    .retrieve().toBodilessEntity();
+        } catch (Exception e) {
+            log.warn("Impossible d'invalider immédiatement les sessions Keycloak de {} : {}", userId, e.getMessage());
         }
     }
 
@@ -254,17 +296,32 @@ public class KeycloakAuthService {
         log.info("Mot de passe modifié pour userId: {}", userId);
     }
 
-    public void deleteUser(String userId) {
+
+    public void setUserEnabled(String userId, boolean enabled) {
+        String adminToken = getAdminToken();
+        ObjectNode body = mapper.createObjectNode();
+        body.put("enabled", enabled);
+        restClient.put().uri(userUrl(userId))
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body.toString()).retrieve().toBodilessEntity();
+        if (!enabled) logoutUserSessions(userId);
+    }
+
+    public void deleteUserStrict(String userId) {
+        String adminToken = getAdminToken();
         try {
-            String adminToken = getAdminToken();
-            restClient.delete()
-                    .uri(userUrl(userId))
+            restClient.delete().uri(userUrl(userId))
                     .header("Authorization", "Bearer " + adminToken)
-                    .retrieve()
-                    .toBodilessEntity();
+                    .retrieve().toBodilessEntity();
             log.info("Utilisateur Keycloak supprimé : {}", userId);
-        } catch (Exception e) {
-            log.warn("Impossible de supprimer l'utilisateur Keycloak {} : {}", userId, e.getMessage());
+        } catch (HttpClientErrorException.NotFound ignored) {
+            log.info("Utilisateur Keycloak déjà absent : {}", userId);
         }
+    }
+
+    public void deleteUser(String userId) {
+        try { deleteUserStrict(userId); }
+        catch (Exception e) { log.warn("Impossible de supprimer l'utilisateur Keycloak {} : {}", userId, e.getMessage()); }
     }
 }

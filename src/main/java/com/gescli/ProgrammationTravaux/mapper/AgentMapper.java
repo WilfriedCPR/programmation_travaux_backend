@@ -2,8 +2,6 @@ package com.gescli.ProgrammationTravaux.mapper;
 
 import com.gescli.ProgrammationTravaux.dto.AgentRequestDTO;
 import com.gescli.ProgrammationTravaux.dto.AgentResponseDTO;
-import com.gescli.ProgrammationTravaux.dto.AgentRequestDTO;
-import com.gescli.ProgrammationTravaux.dto.AgentResponseDTO;
 import com.gescli.ProgrammationTravaux.entity.Agent;
 import org.mapstruct.*;
 
