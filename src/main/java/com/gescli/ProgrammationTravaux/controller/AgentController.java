@@ -19,6 +19,7 @@ import com.gescli.ProgrammationTravaux.dto.AgentResponseDTO;
 import com.gescli.ProgrammationTravaux.service.AgentService;
 
 import lombok.RequiredArgsConstructor;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/agents")
@@ -38,12 +39,12 @@ public class AgentController {
     }
 
     @PostMapping
-    public ResponseEntity<AgentResponseDTO> create(@RequestBody AgentRequestDTO dto) {
+    public ResponseEntity<AgentResponseDTO> create(@Valid @RequestBody AgentRequestDTO dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(agentService.createAgent(dto));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<AgentResponseDTO> update(@PathVariable String id, @RequestBody AgentRequestDTO dto) {
+    public ResponseEntity<AgentResponseDTO> update(@PathVariable String id, @Valid @RequestBody AgentRequestDTO dto) {
         return ResponseEntity.ok(agentService.updateAgent(id, dto));
     }
 
@@ -51,5 +52,15 @@ public class AgentController {
     public ResponseEntity<Void> delete(@PathVariable String id) {
         agentService.deleteAgent(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}/deactivate")
+    public ResponseEntity<AgentResponseDTO> deactivate(@PathVariable String id) {
+        return ResponseEntity.ok(agentService.deactivateAgent(id));
+    }
+
+    @PutMapping("/{id}/reactivate")
+    public ResponseEntity<AgentResponseDTO> reactivate(@PathVariable String id) {
+        return ResponseEntity.ok(agentService.reactivateAgent(id));
     }
 }

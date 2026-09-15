@@ -43,4 +43,14 @@ public class AffectationController {
     public ResponseEntity<List<AffectationResponseDTO>> getByAgent(@PathVariable String agentId) {
         return ResponseEntity.ok(affectationService.getDevisByAgentId(agentId));
     }
+
+    @GetMapping("/byAgent/{agentId}/history")
+    public ResponseEntity<List<AffectationResponseDTO>> getHistoryByAgent(@PathVariable String agentId) {
+        return ResponseEntity.ok(affectationService.getHistoryByAgentId(agentId));
+    }
+
+    @GetMapping("/conflits")
+    public ResponseEntity<List<String>> conflicts(@RequestParam String agentId, @RequestParam String devisId) {
+        return ResponseEntity.ok(affectationService.detectPlanningConflicts(agentId, devisId));
+    }
 }

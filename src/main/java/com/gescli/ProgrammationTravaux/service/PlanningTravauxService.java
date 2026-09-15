@@ -34,6 +34,8 @@ public class PlanningTravauxService {
     private final MaterielRepository materielRepository;
     private final DocumentRepository documentRepository;
     private final FileStorageService fileStorageService;
+    private final ActivityLogService activityLogService;
+    private final NotificationService notificationService;
 
     @Transactional(readOnly = true)
     public List<PlanningTravauxResponseDTO> getAll() {
@@ -70,7 +72,11 @@ public class PlanningTravauxService {
 
         PlanningTravaux planning = PlanningTravauxMapper.toEntity(dto, devis, travaux, agent);
         applyParticipants(planning, dto);
-        return PlanningTravauxMapper.toDTO(planningRepo.save(planning));
+        validateScheduleConflicts(planning, null);
+        PlanningTravaux saved = planningRepo.save(planning);
+        activityLogService.log("PLANNING_CREATION", "Création du planning " + devis.getDevisCode() + " — " + travaux.getLibelle(), devis.getDevisCode(), devis.getId(), agent != null ? agent.getId() : null);
+        notifyPlanningMembers(saved, "Nouveau planning", "Un planning a été programmé pour le devis " + devis.getDevisCode() + ".");
+        return PlanningTravauxMapper.toDTO(saved);
     }
 
     @Transactional
@@ -79,6 +85,7 @@ public class PlanningTravauxService {
         Devis devis = devisRepo.findById(dto.getDevisId())
                 .orElseThrow(() -> new EntityNotFoundException("Devis introuvable : " + dto.getDevisId()));
         Travaux travaux = resolveTravaux(dto);
+        validateDevisTravauxType(dto, travaux);
         Agent agent = dto.getAgentId() != null ? agentRepo.findById(dto.getAgentId()).orElse(null) : null;
 
         if (dto.getDateFin() != null) {
@@ -97,7 +104,11 @@ public class PlanningTravauxService {
         planning.setDemOption(dto.getDemOption());
         planning.setHt(isHt(dto.getDemOption()));
         applyParticipants(planning, dto);
-        return PlanningTravauxMapper.toDTO(planningRepo.save(planning));
+        validateScheduleConflicts(planning, id);
+        PlanningTravaux saved = planningRepo.save(planning);
+        activityLogService.log("PLANNING_MODIFICATION", "Modification du planning " + devis.getDevisCode() + " — " + travaux.getLibelle(), devis.getDevisCode(), devis.getId(), agent != null ? agent.getId() : null);
+        notifyPlanningMembers(saved, "Planning modifié", "Le planning du devis " + devis.getDevisCode() + " a été modifié.");
+        return PlanningTravauxMapper.toDTO(saved);
     }
 
     @Transactional
@@ -105,6 +116,8 @@ public class PlanningTravauxService {
         PlanningTravaux planning = findById(id);
         planning.setDeleted(true);
         planningRepo.save(planning);
+        activityLogService.log("PLANNING_SUPPRESSION", "Suppression logique du planning " + planning.getDevis().getDevisCode() + " — " + planning.getTravaux().getLibelle(), planning.getDevis().getDevisCode(), planning.getDevis().getId(), planning.getAgent() != null ? planning.getAgent().getId() : null);
+        notifyPlanningMembers(planning, "Planning annulé", "Un planning du devis " + planning.getDevis().getDevisCode() + " a été annulé.");
     }
 
     @Transactional
@@ -125,7 +138,10 @@ public class PlanningTravauxService {
         }
         planning.setCloture(true);
         planning.setClotureDate(LocalDateTime.now());
-        return planningRepo.save(planning);
+        PlanningTravaux saved = planningRepo.save(planning);
+        activityLogService.log("PLANNING_CLOTURE", "Clôture du planning " + planning.getDevis().getDevisCode() + " — " + planning.getTravaux().getLibelle(), planning.getDevis().getDevisCode(), planning.getDevis().getId(), planning.getAgent() != null ? planning.getAgent().getId() : null);
+        notifyPlanningMembers(saved, "Planning clôturé", "Le planning du devis " + planning.getDevis().getDevisCode() + " a été clôturé.");
+        return saved;
     }
 
     public PlanningTravaux findById(String id) {
@@ -177,6 +193,47 @@ public class PlanningTravauxService {
         }
     }
 
+    private void validateScheduleConflicts(PlanningTravaux planning, String excludePlanningId) {
+        if (planning.getDateDebut() == null) return;
+        LocalDateTime end = effectiveEnd(planning);
+        java.util.LinkedHashSet<Agent> members = new java.util.LinkedHashSet<>();
+        if (planning.getAgent() != null) members.add(planning.getAgent());
+        if (planning.getParticipants() != null) members.addAll(planning.getParticipants());
+
+        for (Agent member : members) {
+            if (!member.isActif()) {
+                throw new IllegalStateException("L'agent " + member.getPrenom() + " " + member.getNom() + " est inactif.");
+            }
+            List<PlanningTravaux> conflicts = planningRepo.findOpenForAgent(member.getId()).stream()
+                    .filter(c -> excludePlanningId == null || !excludePlanningId.equals(c.getId()))
+                    .filter(c -> c.getDateDebut() != null && overlaps(planning.getDateDebut(), end, c.getDateDebut(), effectiveEnd(c)))
+                    .toList();
+            if (!conflicts.isEmpty()) {
+                PlanningTravaux c = conflicts.get(0);
+                String code = c.getDevis() != null ? c.getDevis().getDevisCode() : "autre devis";
+                throw new IllegalStateException("Conflit de planning pour " + member.getPrenom() + " " + member.getNom()
+                        + " : déjà programmé sur " + code + " à partir du " + c.getDateDebut() + ".");
+            }
+        }
+    }
+
+    private boolean overlaps(LocalDateTime aStart, LocalDateTime aEnd, LocalDateTime bStart, LocalDateTime bEnd) {
+        return aStart.isBefore(bEnd) && bStart.isBefore(aEnd);
+    }
+
+    private LocalDateTime effectiveEnd(PlanningTravaux planning) {
+        LocalDateTime start = planning.getDateDebut();
+        return planning.getDateFin() != null && planning.getDateFin().isAfter(start) ? planning.getDateFin() : start.plusHours(8);
+    }
+
+    private void notifyPlanningMembers(PlanningTravaux planning, String title, String message) {
+        java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>();
+        if (planning.getAgent() != null) ids.add(planning.getAgent().getId());
+        if (planning.getParticipants() != null) planning.getParticipants().forEach(a -> ids.add(a.getId()));
+        String link = "/planning/" + planning.getDevis().getId();
+        ids.forEach(id -> notificationService.notifyAgent(id, title, message, "PLANNING", link));
+    }
+
     private Participant resolveParticipant(String fullName) {
         String[] parts = fullName.split(" ", 2);
         String nom    = parts[0];
@@ -198,7 +255,7 @@ public class PlanningTravauxService {
     }
 
     @Transactional
-    public PvDocumentDTO uploadPvDoc(String planningId, MultipartFile file, String pvKind, String observation) throws IOException {
+    public PvDocumentDTO uploadPvDoc(String planningId, MultipartFile file, String pvKind, String observation, String participantsJson) throws IOException {
         PlanningTravaux planning = findById(planningId);
         String filePath = fileStorageService.store(file, "pv");
         Document doc = new Document();
@@ -208,6 +265,7 @@ public class PlanningTravauxService {
         doc.setFilePath(filePath);
         doc.setMimeType(file.getContentType());
         doc.setObservation(observation);
+        doc.setParticipantsJson(participantsJson);
         try {
             doc.setPvKind(PvKind.valueOf(pvKind));
         } catch (IllegalArgumentException ignored) {}

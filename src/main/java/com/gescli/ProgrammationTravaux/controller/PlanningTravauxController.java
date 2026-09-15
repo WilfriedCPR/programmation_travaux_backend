@@ -91,8 +91,9 @@ public class PlanningTravauxController {
             @PathVariable String id,
             @RequestParam MultipartFile file,
             @RequestParam String pvKind,
-            @RequestParam(required = false) String observation) throws IOException {
-        return ResponseEntity.ok(service.uploadPvDoc(id, file, pvKind, observation));
+            @RequestParam(required = false) String observation,
+            @RequestParam(required = false) String participants) throws IOException {
+        return ResponseEntity.ok(service.uploadPvDoc(id, file, pvKind, observation, participants));
     }
 
     @DeleteMapping("/{id}/pv-docs/{docId}")

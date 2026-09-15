@@ -38,6 +38,8 @@ public class ParticipantService {
     @Transactional
     public ParticipantDTO create(ParticipantDTO dto) {
         Participant entity = mapper.toEntity(dto);
+        // Les participants gérés depuis ce module sont externes à la SONABEL.
+        entity.setExterne(true);
         return mapper.toDto(repository.save(entity));
     }
 
@@ -46,6 +48,7 @@ public class ParticipantService {
         Participant entity = repository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Participant introuvable : " + id));
         mapper.updateFromDto(dto, entity);
+        entity.setExterne(true);
         return mapper.toDto(repository.save(entity));
     }
 

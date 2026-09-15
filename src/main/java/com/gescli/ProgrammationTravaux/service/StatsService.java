@@ -8,7 +8,6 @@ import com.gescli.ProgrammationTravaux.entity.DevisStatut;
 import com.gescli.ProgrammationTravaux.entity.PlanningTravaux;
 import com.gescli.ProgrammationTravaux.repository.*;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,7 +31,6 @@ public class StatsService {
     private final DemandeMaterielRepository demandeRepo;
     private final ParticipantRepository participantRepo;
 
-    @Cacheable("stats")
     @Transactional(readOnly = true)
     public StatsDTO getStats() {
         LocalDateTime now = LocalDateTime.now();
@@ -46,7 +44,9 @@ public class StatsService {
 
         long enCours = devisRepo.countEnCours();
         long clos = devisRepo.countClos();
-        long agentsTotal = agentRepo.count();
+        long agentsTotal = agentRepo.countByActifTrue();
+        long agentsInactifs = agentRepo.countByActifFalse();
+        long agentsAffectes = affectationRepo.countDistinctAgentsActive();
         long participantsExternes = participantRepo.countByExterneTrue();
 
         StatsDTO dto = new StatsDTO();
@@ -55,14 +55,19 @@ public class StatsService {
         dto.setTotalDevis(enCours + clos);
         dto.setPlanningsAujourdhui(planningRepo.countByDateRange(startOfDay, endOfDay));
         dto.setPlanningsSemaine(planningRepo.countByDateRange(startOfWeek, endOfWeek));
-        dto.setAgentsAffectes(affectationRepo.countByActiveTrue());
+        dto.setAgentsAffectes(agentsAffectes);
+        dto.setAgentsDisponibles(Math.max(0, agentsTotal - agentsAffectes));
+        dto.setAgentsInactifs(agentsInactifs);
+        dto.setAgentsIndisponibles(planningRepo.countAgentsCurrentlyBusy(now));
+        dto.setTravauxEnRetard(planningRepo.countOverdue(now));
         dto.setAgentsTotal(agentsTotal);
         dto.setParticipantsExternesTotal(participantsExternes);
         dto.setAgentsTotalAvecExternes(agentsTotal + participantsExternes);
-        dto.setAgentsAffectesAujourdhui(affectationRepo.countByActiveTrueAndDateAffectationBetween(startOfDay, endOfDay));
+        dto.setAgentsAffectesAujourdhui(affectationRepo.countDistinctAgentsActiveBetween(startOfDay, endOfDay));
         dto.setNouveauxParticipantsAujourdhui(participantRepo.countByExterneTrueAndDateCreationBetween(startOfDay, endOfDay));
         dto.setBonsSortieMois(bonSortieRepo.countByDateSortieBetween(startOfMonth, endOfMonth));
         dto.setBonsSortieAujourdhui(bonSortieRepo.countByDateSortieBetween(startOfDay, endOfDay));
+        dto.setBonsSortieATraiter(demandeRepo.countBonsSortieATraiter());
         dto.setDemandesMaterielEnAttente(demandeRepo.countByValideFalseAndDeletedFalse());
         dto.setDemandesMaterielAujourdhui(demandeRepo.countByDeletedFalseAndDateDemandeBetween(startOfDay, endOfDay));
         dto.setDernieresActivites(getActivitesRecentes());
@@ -84,7 +89,7 @@ public class StatsService {
             activites.add(a);
         }
 
-        for (PlanningTravaux p : planningRepo.findTop5WithDevisOrderByDateDebutDesc()) {
+        for (PlanningTravaux p : planningRepo.findTop5ByOrderByDateDebutDesc()) {
             ActiviteDTO a = new ActiviteDTO();
             a.setId(p.getId());
             a.setType("PLANNING");
