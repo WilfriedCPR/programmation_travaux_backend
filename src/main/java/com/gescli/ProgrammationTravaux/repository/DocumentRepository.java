@@ -12,4 +12,7 @@ public interface DocumentRepository extends JpaRepository<Document, String> {
     @Query("SELECT d FROM Document d WHERE d.planning.id = :planningId AND d.typeDocument = :type")
     List<Document> findByPlanning_IdAndTypeDocument(@Param("planningId") String planningId,
                                                      @Param("type") TypeDocument type);
+
+    boolean existsByPlanning_IdAndTypeDocumentAndPvKind(String planningId, TypeDocument type,
+                                                         com.gescli.ProgrammationTravaux.entity.PvKind pvKind);
 }

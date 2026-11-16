@@ -7,6 +7,7 @@ import java.util.Optional;
 public interface AgentRepository extends JpaRepository<Agent, String> {
     Optional<Agent> findByNomAndPrenom(String nom, String prenom);
     Optional<Agent> findByCode(String code);
+    Optional<Agent> findByCodeIgnoreCase(String code);
     long countByActifTrue();
     long countByActifFalse();
 }

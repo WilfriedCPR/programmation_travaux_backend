@@ -15,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.time.LocalDateTime;
 
 @RestController
 @RequestMapping("/api/plannings")
@@ -74,6 +75,12 @@ public class PlanningTravauxController {
     @PatchMapping("/{id}/close")
     public ResponseEntity<PlanningTravauxResponseDTO> close(@PathVariable String id) {
         return ResponseEntity.ok(PlanningTravauxMapper.toDTO(service.closePlanning(id)));
+    }
+
+    @PatchMapping("/{id}/finish")
+    public ResponseEntity<PlanningTravauxResponseDTO> finish(@PathVariable String id,
+                                                              @RequestBody PlanningTravauxRequestDTO dto) {
+        return ResponseEntity.ok(PlanningTravauxMapper.toDTO(service.finishPlanning(id, dto.getDateFin())));
     }
 
     @PutMapping("/{id}/cloture")

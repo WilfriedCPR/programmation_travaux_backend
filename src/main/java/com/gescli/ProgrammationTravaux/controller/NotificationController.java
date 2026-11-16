@@ -26,6 +26,12 @@ public class NotificationController {
         return notificationService.list(jwt.getSubject());
     }
 
+    @GetMapping("/latest")
+    public ResponseEntity<NotificationDTO> latest(@AuthenticationPrincipal Jwt jwt) {
+        NotificationDTO latest = notificationService.latest(jwt.getSubject());
+        return latest == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(latest);
+    }
+
     @GetMapping("/unread-count")
     public Map<String, Long> unread(@AuthenticationPrincipal Jwt jwt) {
         return Map.of("count", notificationService.unreadCount(jwt.getSubject()));

@@ -7,6 +7,8 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,12 +29,27 @@ public class NotificationService {
         n.setType(type);
         n.setLien(lien);
         repository.save(n);
-        pushService.notifyAgent(agentId);
+        // Le push sans payload provoque ensuite une lecture de /latest par le service worker.
+        // Il doit donc être envoyé après le commit afin que la nouvelle notification soit visible.
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() { pushService.notifyAgent(agentId); }
+            });
+        } else {
+            pushService.notifyAgent(agentId);
+        }
     }
 
     @Transactional(readOnly = true)
     public List<NotificationDTO> list(String agentId) {
         return repository.findTop50ByAgentIdOrderByDateCreationDesc(agentId).stream().map(this::toDto).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public NotificationDTO latest(String agentId) {
+        return repository.findTopByAgentIdOrderByDateCreationDesc(agentId)
+                .map(this::toDto)
+                .orElse(null);
     }
 
     @Transactional(readOnly = true)

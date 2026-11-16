@@ -18,5 +18,6 @@ public class PlanningTravauxRequestDTO {
     private Boolean cloture;
     private List<String> participantIds;
     private List<String> participantNames;
+    private List<String> externalParticipantIds;
     private String participantsExternes;
 }

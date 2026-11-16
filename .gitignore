@@ -34,3 +34,6 @@ build/
 
 ### Secrets ###
 .env
+
+uploads/
+.vapid-keys.properties

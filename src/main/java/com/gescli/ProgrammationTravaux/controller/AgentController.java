@@ -33,6 +33,15 @@ public class AgentController {
         return ResponseEntity.ok(agentService.getAllAgents(Pageable.unpaged()).getContent());
     }
 
+    /**
+     * Liste opérationnelle utilisée par le Chef pour affecter des agents à un devis.
+     * L'administration complète des agents reste réservée à l'ADMIN via les autres endpoints.
+     */
+    @GetMapping("/lookup")
+    public ResponseEntity<List<AgentResponseDTO>> lookupForAffectation() {
+        return ResponseEntity.ok(agentService.getAllAgents(Pageable.unpaged()).getContent());
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<AgentResponseDTO> getById(@PathVariable String id) {
         return ResponseEntity.ok(agentService.getAgentById(id));

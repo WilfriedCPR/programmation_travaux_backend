@@ -6,9 +6,13 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.gescli.ProgrammationTravaux.dto.TravauxContrainteRequestDTO;
 import com.gescli.ProgrammationTravaux.dto.TravauxContrainteResponseDTO;
+import com.gescli.ProgrammationTravaux.exception.ConflictException;
 import com.gescli.ProgrammationTravaux.entity.Contrainte;
 import com.gescli.ProgrammationTravaux.entity.PlanningTravaux;
 import com.gescli.ProgrammationTravaux.entity.Travaux;
@@ -34,18 +38,13 @@ public class TravauxContrainteService {
 
     @Transactional
     public TravauxContrainteResponseDTO addContrainteToTravail(TravauxContrainteRequestDTO dto) {
+        ensurePrivilegedMutation();
         Travaux travaux = travauxRepository.findById(dto.getTravauxId())
                 .orElseThrow(() -> new EntityNotFoundException("Travaux not found with id: " + dto.getTravauxId()));
 
         TravauxContrainte entity = new TravauxContrainte();
         entity.setTravaux(travaux);
-        Contrainte contrainte = contrainteRepository
-                .findFirstByLibelleIgnoreCase(dto.getContrainteLibelle())
-                .orElseGet(() -> {
-                    Contrainte c = new Contrainte();
-                    c.setLibelle(dto.getContrainteLibelle());
-                    return contrainteRepository.save(c);
-                });
+        Contrainte contrainte = resolveContrainte(dto.getContrainteLibelle());
         entity.setContrainte(contrainte);
         entity.setDateMiseContrainte(LocalDateTime.now());
         entity.setObservationMise(dto.getObservationMise());
@@ -59,16 +58,12 @@ public class TravauxContrainteService {
             String observationMise) {
         PlanningTravaux planning = planningTravauxRepository.findById(planningId)
                 .orElseThrow(() -> new EntityNotFoundException("PlanningTravaux not found with id: " + planningId));
+        ensurePlanningVisible(planning);
+        ensurePlanningMutable(planning);
         TravauxContrainte entity = new TravauxContrainte();
         entity.setPlanning(planning);
         entity.setTravaux(planning.getTravaux());
-        Contrainte contrainte = contrainteRepository
-                .findFirstByLibelleIgnoreCase(contrainteLibelle)
-                .orElseGet(() -> {
-                    Contrainte c = new Contrainte();
-                    c.setLibelle(contrainteLibelle);
-                    return contrainteRepository.save(c);
-                });
+        Contrainte contrainte = resolveContrainte(contrainteLibelle);
         entity.setContrainte(contrainte);
         entity.setDateMiseContrainte(LocalDateTime.now());
         entity.setObservationMise(observationMise);
@@ -80,6 +75,8 @@ public class TravauxContrainteService {
     public TravauxContrainteResponseDTO removeContrainteFromTravail(String id, String observationLevee) {
         TravauxContrainte entity = travauxContrainteRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("TravauxContrainte not found with id: " + id));
+        ensurePlanningVisible(entity.getPlanning());
+        ensurePlanningMutable(entity.getPlanning());
         entity.setDateLeveeContrainte(LocalDateTime.now());
         entity.setObservationLevee(observationLevee);
         entity.setActive(false);
@@ -94,6 +91,8 @@ public class TravauxContrainteService {
         if (entity.getPlanning() == null || !entity.getPlanning().getId().equals(planningId)) {
             throw new EntityNotFoundException("Contrainte does not belong to planning: " + planningId);
         }
+        ensurePlanningVisible(entity.getPlanning());
+        ensurePlanningMutable(entity.getPlanning());
         entity.setDateLeveeContrainte(LocalDateTime.now());
         entity.setObservationLevee(observationLevee);
         entity.setActive(false);
@@ -102,14 +101,19 @@ public class TravauxContrainteService {
 
     @Transactional
     public void deleteContrainte(String id) {
-        if (!travauxContrainteRepository.existsById(id)) {
-            throw new EntityNotFoundException("TravauxContrainte not found with id: " + id);
+        ensurePrivilegedMutation();
+        TravauxContrainte entity = travauxContrainteRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("TravauxContrainte not found: " + id));
+        if (Boolean.TRUE.equals(entity.getActive())) {
+            throw new IllegalStateException("Seule une contrainte levée peut être supprimée.");
         }
-        travauxContrainteRepository.deleteById(id);
+        ensurePlanningMutable(entity.getPlanning());
+        travauxContrainteRepository.delete(entity);
     }
 
     @Transactional(readOnly = true)
     public List<TravauxContrainteResponseDTO> getContraintesByTravail(String travauxId) {
+        ensurePrivilegedMutation();
         return travauxContrainteRepository.findByTravaux_Id(travauxId).stream()
                 .map(travauxContrainteMapper::toDto)
                 .collect(Collectors.toList());
@@ -117,6 +121,9 @@ public class TravauxContrainteService {
 
     @Transactional(readOnly = true)
     public List<TravauxContrainteResponseDTO> getContraintesByPlanning(String planningId) {
+        PlanningTravaux planning = planningTravauxRepository.findById(planningId)
+                .orElseThrow(() -> new EntityNotFoundException("PlanningTravaux not found with id: " + planningId));
+        ensurePlanningVisible(planning);
         return travauxContrainteRepository.findByPlanning_Id(planningId).stream()
                 .map(travauxContrainteMapper::toDto)
                 .collect(Collectors.toList());
@@ -124,16 +131,11 @@ public class TravauxContrainteService {
 
     @Transactional
     public TravauxContrainteResponseDTO update(String id, TravauxContrainteRequestDTO dto) {
+        ensurePrivilegedMutation();
         TravauxContrainte entity = travauxContrainteRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("TravauxContrainte not found with id: " + id));
         if (dto.getContrainteLibelle() != null && !dto.getContrainteLibelle().isBlank()) {
-            Contrainte contrainte = contrainteRepository
-                    .findFirstByLibelleIgnoreCase(dto.getContrainteLibelle())
-                    .orElseGet(() -> {
-                        Contrainte c = new Contrainte();
-                        c.setLibelle(dto.getContrainteLibelle());
-                        return contrainteRepository.save(c);
-                    });
+            Contrainte contrainte = resolveContrainte(dto.getContrainteLibelle());
             entity.setContrainte(contrainte);
         }
         if (dto.getObservationMise() != null) {
@@ -144,6 +146,7 @@ public class TravauxContrainteService {
 
     @Transactional(readOnly = true)
     public List<TravauxContrainteResponseDTO> getAllContraintes() {
+        ensurePrivilegedMutation();
         return travauxContrainteRepository.findAll().stream()
                 .map(travauxContrainteMapper::toDto)
                 .collect(Collectors.toList());
@@ -152,14 +155,13 @@ public class TravauxContrainteService {
     @Transactional(readOnly = true)
     public List<String> suggestLibelles(String query) {
         if (query == null || query.isBlank()) {
-            List<String> list = contrainteRepository.findAll().stream()
+            List<String> list = contrainteRepository.findTop50ByOrderByLibelleAsc().stream()
                     .map(Contrainte::getLibelle)
                     .filter(s -> s != null && !s.isBlank())
                     .distinct()
                     .sorted()
                     .limit(50)
                     .collect(Collectors.toList());
-            System.out.println("SUGGEST EMPTY QUERY: found " + list.size() + " elements in DB");
             return list;
         }
         List<String> list = contrainteRepository.findByLibelleContainingIgnoreCase(query).stream()
@@ -167,7 +169,56 @@ public class TravauxContrainteService {
                 .filter(s -> s != null && !s.isBlank())
                 .distinct()
                 .collect(Collectors.toList());
-        System.out.println("SUGGEST QUERY '" + query + "': found " + list.size() + " elements in DB");
-        return list;
+        return list.stream().sorted(String.CASE_INSENSITIVE_ORDER).limit(50).toList();
+    }
+
+    private Contrainte resolveContrainte(String rawLibelle) {
+        if (rawLibelle == null || rawLibelle.isBlank()) {
+            throw new IllegalArgumentException("Le type de contrainte est obligatoire.");
+        }
+        String libelle = rawLibelle.trim().replaceAll("\\s+", " ");
+        return contrainteRepository.findFirstByLibelleIgnoreCase(libelle)
+                .orElseGet(() -> {
+                    Contrainte c = new Contrainte();
+                    c.setLibelle(libelle);
+                    c.setCreatedDate(LocalDateTime.now());
+                    c.setDeleted(false);
+                    return contrainteRepository.saveAndFlush(c);
+                });
+    }
+
+    private boolean isRestrictedAgent() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        boolean privileged = auth.getAuthorities().stream().anyMatch(a ->
+                "ROLE_ADMIN".equals(a.getAuthority()) || "ROLE_CHEF".equals(a.getAuthority()));
+        boolean agent = auth.getAuthorities().stream().anyMatch(a -> "ROLE_AGENT".equals(a.getAuthority()));
+        return agent && !privileged;
+    }
+
+    private void ensurePrivilegedMutation() {
+        if (isRestrictedAgent()) {
+            throw new AccessDeniedException("Cette opération est réservée au Chef ou à l'Administrateur.");
+        }
+    }
+
+    private void ensurePlanningMutable(PlanningTravaux planning) {
+        if (planning != null && (planning.isDeleted() || planning.isCloture() || planning.getDateFin() != null)) {
+            throw new ConflictException("Ce planning est en lecture seule car il est terminÃ©.");
+        }
+    }
+
+    private void ensurePlanningVisible(PlanningTravaux planning) {
+        if (planning == null) {
+            if (isRestrictedAgent()) throw new AccessDeniedException("La contrainte n'est pas rattachée à un planning autorisé.");
+            return;
+        }
+        if (!isRestrictedAgent()) return;
+        String agentId = SecurityContextHolder.getContext().getAuthentication().getName();
+        boolean visible = (planning.getAgent() != null && agentId.equals(planning.getAgent().getId()))
+                || planning.getParticipants().stream().anyMatch(a -> agentId.equals(a.getId()))
+                || (planning.getDevis() != null && planning.getDevis().getAffectations().stream()
+                .anyMatch(a -> a.isActive() && a.getAgent() != null && agentId.equals(a.getAgent().getId())));
+        if (!visible) throw new AccessDeniedException("Accès à la contrainte non autorisé.");
     }
 }

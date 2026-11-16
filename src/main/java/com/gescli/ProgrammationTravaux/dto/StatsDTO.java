@@ -7,6 +7,7 @@ import java.util.List;
 public class StatsDTO {
     private long totalDevisEnCours;
     private long totalDevisClos;
+    private long totalDevisSupprimes;
     private long totalDevis;
     private long planningsAujourdhui;
     private long planningsSemaine;
@@ -16,7 +17,11 @@ public class StatsDTO {
     private long agentsIndisponibles;
     private long travauxEnRetard;
     private long agentsTotal;
+    private long agentsCatalogueTotal;
     private long participantsExternesTotal;
+    private long totalTravaux;
+    private long totalMateriels;
+    private long totalTypesTravaux;
     private long agentsTotalAvecExternes;
     private long agentsAffectesAujourdhui;
     private long nouveauxParticipantsAujourdhui;

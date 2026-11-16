@@ -18,6 +18,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class AgentServiceTest {
@@ -48,7 +49,6 @@ class AgentServiceTest {
     @Test
     void shouldBeDisponibleWhenNoActiveAssignment() {
         when(affectationRepository.countByAgentIdAndActiveTrue("agent-1")).thenReturn(0L);
-        when(planningRepository.findOpenForAgent("agent-1")).thenReturn(List.of());
 
         AgentResponseDTO result = service.getAgentById("agent-1");
 
@@ -56,18 +56,28 @@ class AgentServiceTest {
         assertThat(result.getActiveAffectationsCount()).isZero();
     }
 
+
     @Test
-    void shouldBeAffecteWhenAssignedButNotCurrentlyPlanned() {
-        when(affectationRepository.countByAgentIdAndActiveTrue("agent-1")).thenReturn(2L);
-        PlanningTravaux future = new PlanningTravaux();
-        future.setDateDebut(LocalDateTime.now().plusDays(1));
-        future.setDateFin(LocalDateTime.now().plusDays(1).plusHours(4));
-        when(planningRepository.findOpenForAgent("agent-1")).thenReturn(List.of(future));
+    void noOpenPlanningMeansDisponibleEvenWhenAssignmentHistoryExists() {
+        when(affectationRepository.countByAgentIdAndActiveTrue("agent-1")).thenReturn(0L);
+        when(planningRepository.findOpenForAgent("agent-1")).thenReturn(List.of());
 
         AgentResponseDTO result = service.getAgentById("agent-1");
 
-        assertThat(result.getDisponibilite()).isEqualTo("AFFECTE");
+        assertThat(result.getDisponibilite()).isEqualTo("DISPONIBLE");
+        assertThat(result.getActivePlanningsCount()).isZero();
+    }
+
+    @Test
+    void shouldBeDisponibleWhenAssignedButHasNoOpenPlanning() {
+        when(affectationRepository.countByAgentIdAndActiveTrue("agent-1")).thenReturn(2L);
+        when(planningRepository.findOpenForAgent("agent-1")).thenReturn(List.of());
+
+        AgentResponseDTO result = service.getAgentById("agent-1");
+
+        assertThat(result.getDisponibilite()).isEqualTo("DISPONIBLE");
         assertThat(result.getActiveAffectationsCount()).isEqualTo(2);
+        assertThat(result.getActivePlanningsCount()).isZero();
     }
 
     @Test
@@ -75,12 +85,25 @@ class AgentServiceTest {
         when(affectationRepository.countByAgentIdAndActiveTrue("agent-1")).thenReturn(1L);
         PlanningTravaux current = new PlanningTravaux();
         current.setDateDebut(LocalDateTime.now().minusHours(1));
-        current.setDateFin(LocalDateTime.now().plusHours(2));
+        current.setDateFin(null);
         when(planningRepository.findOpenForAgent("agent-1")).thenReturn(List.of(current));
 
         AgentResponseDTO result = service.getAgentById("agent-1");
 
         assertThat(result.getDisponibilite()).isEqualTo("INDISPONIBLE");
+        assertThat(result.getActivePlanningsCount()).isEqualTo(1);
+    }
+
+    @Test
+    void deactivateAgentAlsoDisablesHistoricalKeycloakAccountByMatricule() {
+        when(affectationRepository.countByAgentIdAndActiveTrue("agent-1")).thenReturn(0L);
+        when(agentRepository.save(agent)).thenReturn(agent);
+
+        AgentResponseDTO result = service.deactivateAgent("agent-1");
+
+        verify(keycloakAuthService).setUserEnabled("agent-1", "A001", false);
+        assertThat(agent.isActif()).isFalse();
+        assertThat(result).isNotNull();
     }
 
     @Test

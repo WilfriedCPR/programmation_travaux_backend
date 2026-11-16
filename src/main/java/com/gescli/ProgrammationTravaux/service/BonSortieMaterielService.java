@@ -259,21 +259,18 @@ public class BonSortieMaterielService {
     }
 
     @Transactional(readOnly = true)
-    public byte[] generatePdf(String id) throws Exception {
+    public byte[] generatePdf(String id) {
         BonSortieMateriel bon = bonSortieMaterielRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Bon de sortie introuvable : " + id));
-
-        ClassPathResource reportResource = new ClassPathResource("reports/BonSortieStyled_fixed.jrxml");
-        InputStream reportStream = reportResource.getInputStream();
-        JasperReport jasperReport = JasperCompileManager.compileReport(reportStream);
 
         DateTimeFormatter dtf     = DateTimeFormatter.ofPattern("dd/MM/yyyy");
         DateTimeFormatter dtfFull = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
-        ClassPathResource logoResource = new ClassPathResource("reports/logo.png");
-        InputStream logoStream = logoResource.getInputStream();
-        Map<String, Object> params = new HashMap<>();
-        params.put("P_LOGO_PATH",          logoStream);
+        try (InputStream reportStream = new ClassPathResource("reports/BonSortieStyled_fixed.jrxml").getInputStream();
+             InputStream logoStream = new ClassPathResource("reports/logo.png").getInputStream()) {
+            JasperReport jasperReport = JasperCompileManager.compileReport(reportStream);
+            Map<String, Object> params = new HashMap<>();
+            params.put("P_LOGO_PATH",          logoStream);
         params.put("P_COMPLEMENTAIRE",     bon.getBonInitial() != null);
         params.put("P_NUMERO_BON",         bon.getNumeroBon());
         params.put("P_CLIENT_NOM",         bon.getClientNom()          != null ? bon.getClientNom()          : "");
@@ -298,9 +295,12 @@ public class BonSortieMaterielService {
                 })
                 .collect(Collectors.toList());
 
-        JRMapCollectionDataSource dataSource = new JRMapCollectionDataSource(lignesList);
-        JasperPrint jasperPrint = JasperFillManager.fillReport(jasperReport, params, dataSource);
-        return JasperExportManager.exportReportToPdf(jasperPrint);
+            JRMapCollectionDataSource dataSource = new JRMapCollectionDataSource(lignesList);
+            JasperPrint jasperPrint = JasperFillManager.fillReport(jasperReport, params, dataSource);
+            return JasperExportManager.exportReportToPdf(jasperPrint);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Impossible de générer le PDF du bon de sortie " + bon.getNumeroBon() + ".", ex);
+        }
     }
 
     private String generateNumeroBonComplementaire(String numeroBonInitial) {

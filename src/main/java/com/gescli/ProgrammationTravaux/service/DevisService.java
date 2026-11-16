@@ -13,6 +13,7 @@ import com.gescli.ProgrammationTravaux.repository.ClientRepository;
 import com.gescli.ProgrammationTravaux.repository.DemandeDossierRepository;
 import com.gescli.ProgrammationTravaux.repository.DevisRepository;
 import com.gescli.ProgrammationTravaux.repository.DocumentRepository;
+import com.gescli.ProgrammationTravaux.repository.PlanningTravauxRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,11 +21,18 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.data.domain.PageImpl;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 @Slf4j
 @Service
@@ -34,6 +42,8 @@ public class DevisService {
     private final DevisRepository devisRepository;
     private final DevisMapper devisMapper;
     private final DocumentRepository documentRepository;
+    private final PlanningTravauxRepository planningRepository;
+    private final FileStorageService fileStorageService;
     private final BonSortieMaterielRepository bonSortieMaterielRepository;
     private final ClientRepository clientRepository;
     private final DemandeDossierRepository demandeDossierRepository;
@@ -54,16 +64,21 @@ public class DevisService {
             }
         }
 
+        Page<Devis> page;
         if (st != null && hasQuery) {
-            return devisRepository.searchByStatut(q.trim(), st, pageable).map(devisMapper::toDto);
+            page = devisRepository.searchByStatut(q.trim(), st, pageable);
+        } else if (st != null) {
+            page = devisRepository.findAllByStatut(st, pageable);
+        } else if (hasQuery) {
+            page = devisRepository.search(q.trim(), pageable);
+        } else {
+            page = devisRepository.findAll(pageable);
         }
-        if (st != null) {
-            return devisRepository.findAllByStatut(st, pageable).map(devisMapper::toDto);
+        if (isRestrictedAgent()) {
+            List<Devis> visible = page.getContent().stream().filter(this::isVisibleToCurrentAgent).toList();
+            page = new PageImpl<>(visible, pageable, visible.size());
         }
-        if (hasQuery) {
-            return devisRepository.search(q.trim(), pageable).map(devisMapper::toDto);
-        }
-        return devisRepository.findAll(pageable).map(devisMapper::toDto);
+        return page.map(devisMapper::toDto);
     }
 
     @Transactional(readOnly = true)
@@ -96,12 +111,14 @@ public class DevisService {
         } else {
             results = devisRepository.findTop500ByOrderByDateCreationDesc();
         }
-        return results.stream().map(devisMapper::toDto).toList();
+        return results.stream().filter(d -> !isRestrictedAgent() || isVisibleToCurrentAgent(d))
+                .map(devisMapper::toDto).toList();
     }
 
     @Transactional(readOnly = true)
     public DevisResponseDTO getDevisById(String id) {
         Devis devis = findById(id);
+        ensureVisibleToCurrentAgent(devis);
         // Force l'initialisation des relations lazy
         if (devis.getDossier() != null) {
             devis.getDossier().getId(); // init dossier
@@ -185,22 +202,80 @@ public class DevisService {
     }
 
     @Transactional
-    public DevisResponseDTO closeDevis(String devisId, String observation) {
+    public DevisResponseDTO closeDevis(String devisId, MultipartFile finalPv, String observation) throws java.io.IOException {
         Devis devis = findById(devisId);
+        if (devis.getStatut() == DevisStatut.CLOS) return devisMapper.toDto(devis);
+        if (devis.getStatut() != DevisStatut.EN_COURS) throw new IllegalStateException("Seul un devis EN_COURS peut être clôturé.");
+        var plannings = planningRepository.findByDevisIdAndDeletedFalse(devisId);
+        if (plannings.isEmpty() || plannings.stream().anyMatch(p -> p.getDateFin() == null && !p.isCloture())) {
+            throw new IllegalStateException("Tous les plannings actifs du devis doivent être terminés avant la clôture.");
+        }
         if (bonSortieMaterielRepository.countByDemandeMateriel_Devis_Id(devisId) == 0) {
             throw new IllegalStateException("Veuillez générer au moins un bon de sortie matériel avant de clôturer.");
         }
-        devis.setStatut(DevisStatut.CLOS);
-        devis.setDateSuppression(LocalDateTime.now());
-        Devis saved = devisRepository.save(devis);
-        affectationService.terminerAffectationsDuDevis(devisId, "devis clôturé");
-        activityLogService.log("DEVIS_CLOTURE", "Clôture du devis " + saved.getDevisCode(), saved.getDevisCode(), saved.getId(), null);
-        return devisMapper.toDto(saved);
+        boolean hta = plannings.stream().anyMatch(p -> p.isHt() || (p.getDemOption() != null && p.getDemOption().trim().toUpperCase().endsWith("HT")));
+        com.gescli.ProgrammationTravaux.entity.PvKind requiredKind = hta
+                ? com.gescli.ProgrammationTravaux.entity.PvKind.RECEPTION_DEFINITIVE
+                : com.gescli.ProgrammationTravaux.entity.PvKind.FINAL_BT;
+        boolean existingFinalPv = plannings.stream().anyMatch(p -> documentRepository.existsByPlanning_IdAndTypeDocumentAndPvKind(p.getId(), com.gescli.ProgrammationTravaux.entity.TypeDocument.PV, requiredKind));
+        if (finalPv == null && !existingFinalPv) {
+            throw new IllegalStateException("Le PV final requis (" + requiredKind + ") doit être fourni avant la clôture.");
+        }
+        String storedPath = null;
+        try {
+            if (finalPv != null && !finalPv.isEmpty()) {
+                validateFinalPv(finalPv);
+                storedPath = fileStorageService.store(finalPv, "pv");
+                var doc = new Document();
+                doc.setPlanning(plannings.get(plannings.size() - 1));
+                doc.setTypeDocument(com.gescli.ProgrammationTravaux.entity.TypeDocument.PV);
+                doc.setPvKind(requiredKind);
+                doc.setFileName(finalPv.getOriginalFilename());
+                doc.setFilePath(storedPath);
+                doc.setMimeType(finalPv.getContentType());
+                doc.setObservation(observation);
+                documentRepository.save(doc);
+            }
+            devis.setStatut(DevisStatut.CLOS);
+            Devis saved = devisRepository.save(devis);
+            affectationService.terminerAffectationsDuDevis(devisId, "devis clôturé");
+            activityLogService.log("DEVIS_CLOTURE", "Clôture du devis " + saved.getDevisCode(), saved.getDevisCode(), saved.getId(), null);
+            return devisMapper.toDto(saved);
+        } catch (RuntimeException | java.io.IOException ex) {
+            if (storedPath != null) try { Files.deleteIfExists(Path.of(storedPath)); } catch (java.io.IOException cleanup) { log.warn("Nettoyage du PV échoué", cleanup); }
+            throw ex;
+        }
+    }
+
+    private void validateFinalPv(MultipartFile file) {
+        if (file.getSize() <= 0 || file.getSize() > 10 * 1024 * 1024) throw new IllegalArgumentException("Le PV doit faire entre 1 octet et 10 Mo.");
+        if (file.getContentType() == null || !file.getContentType().equalsIgnoreCase("application/pdf")) throw new IllegalArgumentException("Le PV final doit être un fichier PDF.");
     }
 
     private Devis findById(String id) {
         return devisRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Devis non trouvé : " + id));
+    }
+
+    private boolean isRestrictedAgent() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+        boolean privileged = auth.getAuthorities().stream().anyMatch(a ->
+                "ROLE_ADMIN".equals(a.getAuthority()) || "ROLE_CHEF".equals(a.getAuthority()));
+        boolean agent = auth.getAuthorities().stream().anyMatch(a -> "ROLE_AGENT".equals(a.getAuthority()));
+        return agent && !privileged;
+    }
+
+    private boolean isVisibleToCurrentAgent(Devis devis) {
+        if (!isRestrictedAgent()) return true;
+        String agentId = SecurityContextHolder.getContext().getAuthentication().getName();
+        return devis.getAffectations().stream().anyMatch(a -> a.isActive() && a.getAgent() != null && agentId.equals(a.getAgent().getId()))
+                || devis.getProgrammations().stream().anyMatch(p -> (p.getAgent() != null && agentId.equals(p.getAgent().getId()))
+                || p.getParticipants().stream().anyMatch(a -> agentId.equals(a.getId())));
+    }
+
+    private void ensureVisibleToCurrentAgent(Devis devis) {
+        if (!isVisibleToCurrentAgent(devis)) throw new AccessDeniedException("Accès au devis non autorisé");
     }
 
     private void applyDateCreation(Devis devis, String dateStr) {

@@ -3,12 +3,15 @@ package com.gescli.ProgrammationTravaux.dto;
 import com.gescli.ProgrammationTravaux.entity.Document;
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 
 @Data
 public class PvDocumentDTO {
     private String id;
+    private String numeroDocument;
+    private LocalDate dateDocument;
     private String fileName;
     private String filePath;
     private String mimeType;
@@ -19,6 +22,8 @@ public class PvDocumentDTO {
     public static PvDocumentDTO fromEntity(Document d) {
         PvDocumentDTO dto = new PvDocumentDTO();
         dto.setId(d.getId());
+        dto.setNumeroDocument(d.getNumeroDocument());
+        dto.setDateDocument(d.getDateDocument());
         dto.setFileName(d.getFileName());
         dto.setFilePath(d.getFilePath());
         dto.setMimeType(d.getMimeType());

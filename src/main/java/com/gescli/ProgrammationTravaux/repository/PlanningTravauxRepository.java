@@ -38,10 +38,36 @@ public interface PlanningTravauxRepository extends JpaRepository<PlanningTravaux
     @Query("""
         SELECT DISTINCT p FROM PlanningTravaux p
         LEFT JOIN p.participants part
-        WHERE p.deleted = false AND p.cloture = false
-          AND (p.agent.id = :agentId OR part.id = :agentId)
+        WHERE p.deleted = false AND p.cloture = false AND p.dateFin IS NULL
+          AND (p.agent.id = :agentId OR part.id = :agentId OR EXISTS (
+            SELECT member.id FROM AffectationDevis member
+            WHERE member.agent.id = :agentId
+              AND member.devis.id = p.devis.id
+              AND member.active = true
+          ))
+          AND EXISTS (
+            SELECT aff.id FROM AffectationDevis aff
+            WHERE aff.agent.id = :agentId
+              AND aff.devis.id = p.devis.id
+              AND aff.active = true
+          )
         """)
     List<PlanningTravaux> findOpenForAgent(@Param("agentId") String agentId);
+
+    @EntityGraph(attributePaths = {"devis", "travaux", "participants", "participantsExternes"})
+    @Query("""
+        SELECT DISTINCT p FROM PlanningTravaux p
+        LEFT JOIN p.participants part
+        WHERE p.deleted = false
+          AND (p.agent.id = :agentId OR part.id = :agentId)
+          AND EXISTS (
+            SELECT aff.id FROM AffectationDevis aff
+            WHERE aff.agent.id = :agentId
+              AND aff.devis.id = p.devis.id
+              AND aff.active = true
+          )
+        """)
+    List<PlanningTravaux> findVisibleForAgent(@Param("agentId") String agentId);
 
     @Query("""
         SELECT COUNT(DISTINCT a.id) FROM Agent a
@@ -52,6 +78,12 @@ public interface PlanningTravauxRepository extends JpaRepository<PlanningTravaux
             AND (p.agent.id = a.id OR part.id = a.id)
             AND p.dateDebut <= :now
             AND (p.dateFin IS NULL OR p.dateFin >= :now)
+            AND EXISTS (
+              SELECT aff.id FROM AffectationDevis aff
+              WHERE aff.agent.id = a.id
+                AND aff.devis.id = p.devis.id
+                AND aff.active = true
+            )
         )
         """)
     long countAgentsCurrentlyBusy(@Param("now") LocalDateTime now);

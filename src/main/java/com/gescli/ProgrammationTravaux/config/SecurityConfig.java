@@ -53,12 +53,20 @@ public class SecurityConfig {
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/activity-log/**").hasRole("ADMIN")
                 .requestMatchers("/api/notifications/**").authenticated()
-                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/agents/**").authenticated()
+                // Administration des agents : ADMIN uniquement.
+                // Le CHEF conserve seulement un endpoint de consultation opérationnelle pour l'affectation.
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/agents/lookup").hasAnyRole("ADMIN", "CHEF")
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/agents/**").hasRole("ADMIN")
                 .requestMatchers("/api/agents/**").hasRole("ADMIN")
-                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/participants/**").authenticated()
+                // Administration des participants : ADMIN uniquement.
+                // La liste des externes reste consultable par le CHEF lors de la préparation d'un planning.
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/participants/externes").hasAnyRole("ADMIN", "CHEF")
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/participants/**").hasRole("ADMIN")
                 .requestMatchers("/api/participants/**").hasRole("ADMIN")
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/type-travaux/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
                 .requestMatchers("/api/type-travaux/**").hasAnyRole("ADMIN", "CHEF")
+                // L'historique par agent appartient à l'administration des agents.
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/affectations/byAgent/**").hasRole("ADMIN")
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/affectations/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
                 .requestMatchers("/api/affectations/**").hasAnyRole("ADMIN", "CHEF")
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/demandes-materiel/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
@@ -70,11 +78,29 @@ public class SecurityConfig {
                 .requestMatchers("/api/materiels/**").hasAnyRole("ADMIN", "CHEF")
                 .requestMatchers("/api/structures/**").hasRole("ADMIN")
                 .requestMatchers("/api/roles/**").hasRole("ADMIN")
+                // Les documents et PV ne sont pas exposés aux agents tant qu'un contrôle
+                // de périmètre métier par document n'est pas disponible dans le service.
+                .requestMatchers("/api/documents/**").hasAnyRole("ADMIN", "CHEF")
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/plannings/*/pv-docs/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/plannings/*/pv-docs/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
+                .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/plannings/*/pv-docs/**").hasAnyRole("ADMIN", "CHEF")
                 .requestMatchers("/api/planning-travaux/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
-                .requestMatchers("/api/contraintes/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/contraintes/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/contraintes/planning/*").hasAnyRole("ADMIN", "CHEF", "AGENT")
+                .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/contraintes/planning/*/contrainte/*/lever").hasAnyRole("ADMIN", "CHEF", "AGENT")
+                .requestMatchers("/api/contraintes/**").hasAnyRole("ADMIN", "CHEF")
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/travaux/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
                 .requestMatchers("/api/travaux/**").hasAnyRole("ADMIN", "CHEF")
-                .requestMatchers("/api/plannings/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/plannings/**").hasAnyRole("ADMIN", "CHEF", "AGENT")
+                // CU06 : les trois profils peuvent créer un planning, dans le périmètre
+                // du dossier affecté pour un AGENT.
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/plannings").hasAnyRole("ADMIN", "CHEF", "AGENT")
+                // CU12 : renseigner la fin d'intervention et clôturer un planning.
+                .requestMatchers(org.springframework.http.HttpMethod.PATCH, "/api/plannings/*/finish").hasAnyRole("ADMIN", "CHEF", "AGENT")
+                .requestMatchers(org.springframework.http.HttpMethod.PATCH, "/api/plannings/*/close").hasAnyRole("ADMIN", "CHEF", "AGENT")
+                .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/plannings/*/cloture").hasAnyRole("ADMIN", "CHEF", "AGENT")
+                .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/plannings/*").hasAnyRole("ADMIN", "CHEF", "AGENT")
+                .requestMatchers("/api/plannings/**").hasAnyRole("ADMIN", "CHEF")
                 .requestMatchers("/api/auth/profile", "/api/auth/change-password").authenticated()
                 .requestMatchers("/api/stats/**").authenticated()
                 .anyRequest().authenticated()

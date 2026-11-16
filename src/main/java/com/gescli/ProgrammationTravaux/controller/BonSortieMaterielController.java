@@ -118,7 +118,7 @@ public class BonSortieMaterielController {
     }
 
     @GetMapping("/{id}/pdf")
-    public ResponseEntity<byte[]> downloadPdf(@PathVariable String id) throws Exception {
+    public ResponseEntity<byte[]> downloadPdf(@PathVariable String id) {
         byte[] pdf = bonSortieMaterielService.generatePdf(id);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"bon-sortie-" + id + ".pdf\"")

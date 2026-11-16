@@ -49,10 +49,30 @@ public class ActivityLogService {
                 .orElse(null);
     }
 
+
+    @Transactional(readOnly = true)
+    public List<ActivityLogDTO> historyEventsByAgent(String agentId, List<String> types) {
+        return repository.findTop100ByAgentIdAndTypeInOrderByDateCreationDesc(agentId, types)
+                .stream().map(this::toDto).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ActivityLogDTO latestEventBefore(String agentId, String devisId, List<String> types, LocalDateTime instant) {
+        return repository.findFirstByAgentIdAndDevisIdAndTypeInAndDateCreationLessThanEqualOrderByDateCreationDesc(
+                        agentId, devisId, types, instant)
+                .map(this::toDto)
+                .orElse(null);
+    }
+
     public String currentActor() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth instanceof JwtAuthenticationToken jwtAuth) {
             String username = jwtAuth.getToken().getClaimAsString("preferred_username");
+            String firstName = jwtAuth.getToken().getClaimAsString("given_name");
+            String lastName = jwtAuth.getToken().getClaimAsString("family_name");
+            String displayName = ((firstName == null ? "" : firstName.trim()) + " "
+                    + (lastName == null ? "" : lastName.trim())).trim();
+            if (!displayName.isBlank()) return displayName;
             if (username != null && !username.isBlank()) return username;
         }
         return auth != null ? auth.getName() : "SYSTEME";

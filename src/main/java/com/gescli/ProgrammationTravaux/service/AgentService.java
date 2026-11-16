@@ -5,6 +5,7 @@ import com.gescli.ProgrammationTravaux.dto.AgentResponseDTO;
 import com.gescli.ProgrammationTravaux.entity.Agent;
 import com.gescli.ProgrammationTravaux.entity.Role;
 import com.gescli.ProgrammationTravaux.entity.Structure;
+import com.gescli.ProgrammationTravaux.exception.ConflictException;
 import com.gescli.ProgrammationTravaux.mapper.AgentMapper;
 import com.gescli.ProgrammationTravaux.repository.AffectationDevisRepository;
 import com.gescli.ProgrammationTravaux.repository.AgentRepository;
@@ -39,8 +40,9 @@ public class AgentService {
         if (dto.getPassword() == null || dto.getPassword().isBlank()) {
             throw new IllegalArgumentException("Le mot de passe est obligatoire");
         }
-        if (agentRepository.findByCode(dto.getCode().trim()).isPresent()) {
-            throw new IllegalArgumentException("Ce matricule existe déjà");
+        String code = dto.getCode().trim();
+        if (agentRepository.findByCodeIgnoreCase(code).isPresent()) {
+            throw new ConflictException("Le matricule \"" + code + "\" existe déjà.");
         }
 
         String roleName = canonicalRole(dto.getRoleName());
@@ -50,13 +52,13 @@ public class AgentService {
 
         try {
             keycloakId = keycloakAuthService.createKeycloakUser(
-                    dto.getCode().trim(), dto.getPassword(), dto.getPrenom().trim(), dto.getNom().trim(), roleName);
+                    code, dto.getPassword(), dto.getPrenom().trim(), dto.getNom().trim(), roleName);
 
             Agent agent = agentMapper.toEntity(dto);
             agent.setId(keycloakId);
             agent.setNom(dto.getNom().trim());
             agent.setPrenom(dto.getPrenom().trim());
-            agent.setCode(dto.getCode().trim());
+            agent.setCode(code);
             agent.setActif(true);
             agent.setStructure(structure);
             agent.getRoles().clear();
@@ -90,14 +92,20 @@ public class AgentService {
         String roleName = canonicalRole(dto.getRoleName());
         Role role = resolveRole(roleName);
         Structure structure = sonabel();
+        String previousCode = agent.getCode();
+        String newCode = dto.getCode().trim();
 
-        keycloakAuthService.updateUserIdentity(id, dto.getCode().trim(), dto.getPrenom().trim(), dto.getNom().trim());
-        keycloakAuthService.replaceApplicationRole(id, roleName);
+        agentRepository.findByCodeIgnoreCase(newCode)
+                .filter(existing -> !existing.getId().equals(id))
+                .ifPresent(existing -> { throw new ConflictException("Le matricule \"" + newCode + "\" existe déjà."); });
+
+        String keycloakUserId = keycloakAuthService.updateUserIdentity(id, previousCode, newCode, dto.getPrenom().trim(), dto.getNom().trim());
+        keycloakAuthService.replaceApplicationRole(keycloakUserId, newCode, roleName);
 
         agentMapper.updateAgentFromDto(dto, agent);
         agent.setNom(dto.getNom().trim());
         agent.setPrenom(dto.getPrenom().trim());
-        agent.setCode(dto.getCode().trim());
+        agent.setCode(newCode);
         agent.setStructure(structure);
         agent.getRoles().clear();
         agent.addRole(role);
@@ -110,7 +118,7 @@ public class AgentService {
         } else {
             activityLogService.log("AGENT_MODIFICATION", "Modification de l'agent " + fullName(saved), saved.getCode(), null, saved.getId());
         }
-        keycloakAuthService.logoutUserSessions(id);
+        keycloakAuthService.logoutUserSessions(keycloakUserId, newCode);
         return toResponse(saved);
     }
 
@@ -136,7 +144,7 @@ public class AgentService {
             throw new IllegalStateException("Cet agent possède encore " + activeAssignments + " affectation(s) active(s). Retirez-les avant de le désactiver.");
         }
         if (!agent.isActif()) return toResponse(agent);
-        keycloakAuthService.setUserEnabled(id, false);
+        keycloakAuthService.setUserEnabled(id, agent.getCode(), false);
         agent.setActif(false);
         Agent saved = agentRepository.save(agent);
         activityLogService.log("AGENT_DESACTIVATION", "Désactivation de l'agent " + fullName(saved), saved.getCode(), null, saved.getId());
@@ -147,7 +155,7 @@ public class AgentService {
     public AgentResponseDTO reactivateAgent(String id) {
         Agent agent = find(id);
         if (agent.isActif()) return toResponse(agent);
-        keycloakAuthService.setUserEnabled(id, true);
+        keycloakAuthService.setUserEnabled(id, agent.getCode(), true);
         agent.setActif(true);
         Agent saved = agentRepository.save(agent);
         activityLogService.log("AGENT_REACTIVATION", "Réactivation de l'agent " + fullName(saved), saved.getCode(), null, saved.getId());
@@ -156,12 +164,15 @@ public class AgentService {
 
     private AgentResponseDTO toResponse(Agent agent) {
         AgentResponseDTO dto = agentMapper.toDto(agent);
-        long count = affectationRepository.countByAgentIdAndActiveTrue(agent.getId());
-        dto.setActiveAffectationsCount((int) count);
+        long activeAssignments = affectationRepository.countByAgentIdAndActiveTrue(agent.getId());
+        int openPlannings = agent.isActif() ? planningRepository.findOpenForAgent(agent.getId()).size() : 0;
+        dto.setActiveAffectationsCount((int) activeAssignments);
+        dto.setActivePlanningsCount(openPlannings);
         dto.setActif(agent.isActif());
-        boolean currentlyBusy = agent.isActif() && planningRepository.findOpenForAgent(agent.getId()).stream()
-                .anyMatch(p -> isCurrentlyRunning(p.getDateDebut(), p.getDateFin()));
-        dto.setDisponibilite(!agent.isActif() ? "INACTIF" : currentlyBusy ? "INDISPONIBLE" : count > 0 ? "AFFECTE" : "DISPONIBLE");
+        // La disponibilité opérationnelle dépend des plannings encore en attente/en cours.
+        // Une simple affectation à un devis sans planning ouvert ne bloque pas l'agent.
+        // Dès que tous ses plannings ont une date de fin (ou sont clôturés), il redevient disponible.
+        dto.setDisponibilite(!agent.isActif() ? "INACTIF" : openPlannings > 0 ? "INDISPONIBLE" : "DISPONIBLE");
         return dto;
     }
 

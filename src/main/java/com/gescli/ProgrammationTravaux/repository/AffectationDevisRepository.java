@@ -13,6 +13,7 @@ public interface AffectationDevisRepository extends JpaRepository<AffectationDev
     Optional<AffectationDevis> findByAgentIdAndDevisIdAndActiveTrue(String agentId, String devisId);
     Optional<AffectationDevis> findTopByAgentIdAndDevisIdAndActiveFalseOrderByDateAffectationDesc(String agentId, String devisId);
     List<AffectationDevis> findByAgentIdAndActiveTrue(String agentId);
+    List<AffectationDevis> findByAgentIdAndActiveFalseOrderByDateRetraitAffectationDesc(String agentId);
     List<AffectationDevis> findByDevisIdAndActiveTrue(String devisId);
     List<AffectationDevis> findByAgentIdOrderByDateAffectationDesc(String agentId);
     List<AffectationDevis> findByDevisIdOrderByDateAffectationDesc(String devisId);

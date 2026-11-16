@@ -103,7 +103,11 @@ public class DemandeMaterielService {
     private void applyDtoToEntity(DemandeMaterielDTO dto, DemandeMateriel demande) {
         demande.setValide(dto.isValide());
         demande.setDateValidation(dto.getDateValidation());
-        demande.setDateDemande(dto.getDateDemande());
+        // La date de demande est une donnée de création : une modification du contenu
+        // ne doit jamais l'effacer lorsque le frontend ne la renvoie pas.
+        if (demande.getDateDemande() == null && dto.getDateDemande() != null) {
+            demande.setDateDemande(dto.getDateDemande());
+        }
         demande.setReferenceValue(dto.getReferenceValue());
 
         if (dto.getDevisId() != null) {

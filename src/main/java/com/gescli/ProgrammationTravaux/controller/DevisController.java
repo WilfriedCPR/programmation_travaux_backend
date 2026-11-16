@@ -10,8 +10,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -92,10 +94,17 @@ public class DevisController {
         return ResponseEntity.ok(devisService.hasBonSortie(id));
     }
 
-    @PatchMapping("/{id}/close")
-    public ResponseEntity<DevisResponseDTO> close(@PathVariable String id,
-                                                   @RequestBody(required = false) Map<String, Object> payload) {
+    @PatchMapping(value = "/{id}/close", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<DevisResponseDTO> closeJson(@PathVariable String id,
+                                                       @RequestBody(required = false) Map<String, Object> payload) throws java.io.IOException {
         String observation = payload != null ? (String) payload.get("observation") : null;
-        return ResponseEntity.ok(devisService.closeDevis(id, observation));
+        return ResponseEntity.ok(devisService.closeDevis(id, null, observation));
+    }
+
+    @PatchMapping(value = "/{id}/close", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<DevisResponseDTO> closeMultipart(@PathVariable String id,
+                                                            @RequestPart(value = "file", required = false) MultipartFile file,
+                                                            @RequestParam(value = "observation", required = false) String observation) throws java.io.IOException {
+        return ResponseEntity.ok(devisService.closeDevis(id, file, observation));
     }
 }

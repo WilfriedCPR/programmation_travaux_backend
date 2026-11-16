@@ -96,6 +96,8 @@
         </band>
     </title>
 
+    <columnHeader>
+        <band height="22">
             <staticText>
                 <reportElement x="0" y="0" width="90" height="22"/>
                 <box><pen lineWidth="1.0" lineColor="#61201F"/></box>
@@ -123,6 +125,8 @@
         </band>
     </columnHeader>
 
+    <detail>
+        <band height="22" splitType="Stretch">
             <textField>
                 <reportElement x="0" y="0" width="90" height="22"/>
                 <box leftPadding="4" rightPadding="4"><pen lineWidth="1.0" lineColor="#61201F"/></box>

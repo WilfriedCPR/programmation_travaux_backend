@@ -52,6 +52,9 @@ public interface DevisRepository extends JpaRepository<Devis, String> {
     @Query(value = "SELECT COUNT(*) FROM tr_devis WHERE LOWER(devis_status) IN ('clos','cloture','clôture','inactif','closed')", nativeQuery = true)
     long countClos();
 
+    @Query(value = "SELECT COUNT(*) FROM tr_devis WHERE LOWER(devis_status) IN ('supprime','supprimé','deleted')", nativeQuery = true)
+    long countSupprimes();
+
     @Query("SELECT d FROM Devis d LEFT JOIN d.dossier dd LEFT JOIN dd.client c " +
            "WHERE LOWER(d.devisCode) LIKE LOWER(CONCAT('%',:q,'%')) " +
            "OR LOWER(COALESCE(c.cliCode,'')) LIKE LOWER(CONCAT('%',:q,'%')) " +

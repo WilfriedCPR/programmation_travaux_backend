@@ -1,6 +1,8 @@
 package com.gescli.ProgrammationTravaux.service;
 
 import com.gescli.ProgrammationTravaux.dto.AffectationRequestDTO;
+import com.gescli.ProgrammationTravaux.dto.AffectationResponseDTO;
+import com.gescli.ProgrammationTravaux.dto.ActivityLogDTO;
 import com.gescli.ProgrammationTravaux.entity.*;
 import com.gescli.ProgrammationTravaux.mapper.AffectationMapper;
 import com.gescli.ProgrammationTravaux.repository.*;
@@ -71,6 +73,113 @@ class AffectationServiceTest {
         assertThat(aff.getRetirePar()).isEqualTo("admin.test");
         verify(affectationRepo).save(aff);
         verify(activityLogService).log(eq("AFFECTATION_RETRAIT"), anyString(), eq("DEV-001"), eq("d1"), eq("a1"));
+    }
+
+
+    @Test
+    void removingAssignmentAlsoRemovesAgentFromOpenPlanningButKeepsClosedHistory() {
+        Agent agent = agent("a1");
+        Devis devis = devis("d1", "DEV-001");
+        AffectationDevis aff = new AffectationDevis();
+        aff.setId("aff-1"); aff.setAgent(agent); aff.setDevis(devis); aff.setActive(true); aff.setDateAffectation(LocalDateTime.now().minusDays(2));
+
+        PlanningTravaux open = planning("p-open", devis, new Travaux(), LocalDateTime.now().minusHours(1), LocalDateTime.now().plusHours(2));
+        open.setAgent(agent);
+        open.getParticipants().add(agent);
+        PlanningTravaux closed = planning("p-closed", devis, new Travaux(), LocalDateTime.now().minusDays(2), LocalDateTime.now().minusDays(2).plusHours(2));
+        closed.setCloture(true);
+        closed.setAgent(agent);
+        closed.getParticipants().add(agent);
+
+        when(affectationRepo.findByAgentIdAndDevisIdAndActiveTrue("a1", "d1")).thenReturn(Optional.of(aff));
+        when(planningRepo.findByDevisIdAndDeletedFalse("d1")).thenReturn(List.of(open, closed));
+
+        service.retirerAgent("d1", "a1");
+
+        assertThat(open.getAgent()).isNull();
+        assertThat(open.getParticipants()).doesNotContain(agent);
+        assertThat(closed.getAgent()).isSameAs(agent);
+        assertThat(closed.getParticipants()).contains(agent);
+        verify(planningRepo).save(open);
+        verify(planningRepo, never()).save(closed);
+    }
+
+
+    @Test
+    void reactivatingAssignmentCreatesNewRowAndPreservesPreviousHistory() {
+        Agent agent = agent("a1");
+        Devis devis = devis("d1", "DEV-001");
+        AffectationDevis previous = new AffectationDevis();
+        previous.setId("aff-old");
+        previous.setAgent(agent);
+        previous.setDevis(devis);
+        previous.setActive(false);
+        previous.setDateAffectation(LocalDateTime.now().minusDays(5));
+        previous.setDateRetraitAffectation(LocalDateTime.now().minusDays(2));
+        previous.setAffectePar("chef.old");
+        previous.setRetirePar("admin.old");
+
+        when(agentRepo.findById("a1")).thenReturn(Optional.of(agent));
+        when(affectationRepo.findByAgentIdAndDevisIdAndActiveTrue("a1", "d1")).thenReturn(Optional.empty());
+        when(affectationRepo.findTopByAgentIdAndDevisIdAndActiveFalseOrderByDateAffectationDesc("a1", "d1"))
+                .thenReturn(Optional.of(previous));
+        when(activityLogService.currentActor()).thenReturn("chef.new");
+
+        service.reactiverAgent("d1", "a1");
+
+        // L'ancienne ligne reste strictement historique.
+        assertThat(previous.isActive()).isFalse();
+        assertThat(previous.getDateRetraitAffectation()).isNotNull();
+        assertThat(previous.getRetirePar()).isEqualTo("admin.old");
+
+        verify(affectationRepo).save(argThat(saved ->
+                saved != previous
+                        && saved.isActive()
+                        && saved.getAgent() == agent
+                        && saved.getDevis() == devis
+                        && saved.getDateAffectation() != null
+                        && saved.getDateRetraitAffectation() == null
+                        && "chef.new".equals(saved.getAffectePar())
+                        && saved.getRetirePar() == null));
+    }
+
+    @Test
+    void inactiveHistoryRecoversLegacyRemovalFromActivityLog() {
+        Agent agent = agent("a1");
+        Devis devis = devis("d1", "DEV-001");
+        LocalDateTime removedAt = LocalDateTime.now().minusDays(1);
+        ActivityLogDTO removal = new ActivityLogDTO();
+        removal.setId("log-r");
+        removal.setType("AFFECTATION_RETRAIT");
+        removal.setAgentId("a1");
+        removal.setDevisId("d1");
+        removal.setReference("DEV-001");
+        removal.setActeur("admin.old");
+        removal.setDateCreation(removedAt);
+        ActivityLogDTO addition = new ActivityLogDTO();
+        addition.setId("log-a");
+        addition.setType("AFFECTATION_AJOUT");
+        addition.setAgentId("a1");
+        addition.setDevisId("d1");
+        addition.setActeur("chef.old");
+        addition.setDateCreation(removedAt.minusDays(2));
+
+        when(agentRepo.existsById("a1")).thenReturn(true);
+        when(affectationRepo.findByAgentIdAndActiveFalseOrderByDateRetraitAffectationDesc("a1"))
+                .thenReturn(List.of());
+        when(activityLogService.historyEventsByAgent(eq("a1"), anyList())).thenReturn(List.of(removal));
+        when(activityLogService.latestEventBefore(eq("a1"), eq("d1"), anyList(), eq(removedAt)))
+                .thenReturn(addition);
+        when(devisRepo.findById("d1")).thenReturn(Optional.of(devis));
+
+        List<AffectationResponseDTO> history = service.getInactiveHistoryByAgentId("a1");
+
+        assertThat(history).hasSize(1);
+        assertThat(history.get(0).isActive()).isFalse();
+        assertThat(history.get(0).getDevisCode()).isEqualTo("DEV-001");
+        assertThat(history.get(0).getDateRetraitAffectation()).isEqualTo(removedAt);
+        assertThat(history.get(0).getAffectePar()).isEqualTo("chef.old");
+        assertThat(history.get(0).getRetirePar()).isEqualTo("admin.old");
     }
 
     private Agent agent(String id) {

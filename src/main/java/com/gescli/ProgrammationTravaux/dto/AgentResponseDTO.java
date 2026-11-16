@@ -13,6 +13,7 @@ public class AgentResponseDTO {
     private String structureLibelle;
     private Set<String> rolesLibelles;
     private Integer activeAffectationsCount;
+    private Integer activePlanningsCount;
     private boolean actif;
     private String disponibilite;
 }
